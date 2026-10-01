@@ -9,12 +9,21 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -23,14 +32,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 // ---------- Intake questions ----------
 
@@ -52,7 +60,7 @@ private val bedQ = Q(
 )
 private val noteQ = Q("Other notes", "Anything else Dusk should plan around?", freeText = true)
 
-fun questionsFor(flow: String): List<Q> = if (flow == FLOW_CIGARETTE) listOf(
+private val cigaretteQs = listOf(
     Q("Cigarettes per day", "About how many cigarettes do you smoke a day?",
         listOf("1 to 9", "10 to 19", "20 to 29", "30 or more")),
     Q("First cigarette", "How soon after waking is your first one?",
@@ -62,62 +70,38 @@ fun questionsFor(flow: String): List<Q> = if (flow == FLOW_CIGARETTE) listOf(
         multi = true),
     Q("Stop-smoking aid", "Would you consider a stop-smoking aid, like patches or a prescription?",
         listOf("Yes", "Not sure", "No")),
-    wakeQ, bedQ, noteQ
-) else listOf(
-    Q("How often", "How often do you use?", listOf("Every day", "Most days", "A few days a week")),
+)
+
+private val cannabisQs = listOf(
+    Q("How often", "How often do you use cannabis?", listOf("Every day", "Most days", "A few days a week")),
     Q("Hours high per day", "On a typical day, how many hours are you high?",
         listOf("Under 2", "2 to 5", "5 to 8", "More than 8")),
     Q("What they use", "What do you mostly use? Pick all that apply.",
         listOf("Flower", "Concentrates or vapes", "Edibles", "Mixed with tobacco"), multi = true),
-    Q("When they use", "When do you use? Pick all that apply.",
+    Q("When they use", "When do you use cannabis? Pick all that apply.",
         listOf("On waking", "Afternoon", "After work", "Evening", "To fall asleep"), multi = true),
-    wakeQ, bedQ, noteQ
 )
+
+fun questionsFor(flow: String): List<Q> = when (flow) {
+    FLOW_CIGARETTE -> cigaretteQs
+    FLOW_BOTH -> cigaretteQs + cannabisQs
+    else -> cannabisQs
+} + listOf(wakeQ, bedQ, noteQ)
 
 private fun answerOf(label: String): String = Store.intake.firstOrNull { it.first == label }?.second ?: ""
 
-// ---------- Timeline ----------
-
-private data class Phase(val whenText: String, val what: String)
-
-private val dateFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM")
-
-private fun timeline(flow: String, day1: LocalDate): List<Phase> {
-    fun d(n: Long): String = day1.plusDays(n - 1).format(dateFmt)
-    return if (flow == FLOW_CIGARETTE) listOf(
-        Phase(d(1), "Quit day. Cravings can start within hours."),
-        Phase("${d(2)} to ${d(3)}", "Peak withdrawal. The hardest stretch."),
-        Phase("${d(4)} to ${d(7)}", "Easing, but most relapses happen this week."),
-        Phase(d(14), "Symptoms are fading. Cravings are rarer and shorter."),
-        Phase(d(28), "Most withdrawal is behind you.")
-    ) else listOf(
-        Phase(d(1), "Quit day. Symptoms usually start within 1 to 3 days."),
-        Phase("${d(2)} to ${d(6)}", "Peak withdrawal: irritability, poor sleep, vivid dreams, low appetite."),
-        Phase("${d(7)} to ${d(14)}", "Most symptoms ease."),
-        Phase(d(28), "First milestone. Brain receptors have largely recovered."),
-        Phase("${d(29)} to ${d(42)}", "Sleep can still be catching up. That's normal.")
-    )
-}
-
 private fun personalNotes(flow: String): List<String> {
     val notes = mutableListOf<String>()
-    if (flow == FLOW_CIGARETTE) {
+    if (flow == FLOW_CIGARETTE || flow == FLOW_BOTH) {
         val heavy = answerOf("First cigarette") == "Within 30 minutes" ||
             answerOf("Cigarettes per day") in listOf("20 to 29", "30 or more")
-        if (heavy) {
-            notes.add("Smoking soon after waking, or 20 or more a day, usually means stronger cravings. A pharmacist can talk you through stop-smoking aids.")
-        }
-        if (answerOf("Smoking triggers").contains("With alcohol")) {
-            notes.add("Alcohol is a top relapse trigger in the first month. Plan around it.")
-        }
-    } else {
-        notes.add("Withdrawal varies a lot between people, so the first week is planned tightly either way.")
-        if (answerOf("When they use").contains("To fall asleep")) {
-            notes.add("You use to fall asleep, so sleep is the part most likely to lag. Your evening wind-down matters most.")
-        }
-        if (answerOf("What they use").contains("Mixed with tobacco")) {
-            notes.add("Mixing with tobacco means nicotine withdrawal too. A pharmacist can help with that part.")
-        }
+        if (heavy) notes.add("Smoking soon after waking, or 20 or more a day, usually means stronger cravings. A pharmacist can talk you through stop-smoking aids.")
+        if (answerOf("Smoking triggers").contains("With alcohol")) notes.add("Alcohol is a top relapse trigger in the first month. Plan around it.")
+    }
+    if (flow == FLOW_CANNABIS || flow == FLOW_BOTH) {
+        notes.add("Cannabis withdrawal varies a lot between people, so the first week is planned tightly either way.")
+        if (answerOf("When they use").contains("To fall asleep")) notes.add("You use to fall asleep, so sleep is the part most likely to lag. Your evening wind-down matters most.")
+        if (answerOf("What they use").contains("Mixed with tobacco")) notes.add("Mixing with tobacco means nicotine withdrawal too. A pharmacist can help with that part.")
     }
     return notes
 }
@@ -159,6 +143,60 @@ private fun OptionButton(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+@Composable
+private fun SelectCard(title: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(20.dp)
+    Surface(
+        color = if (selected) c.primaryContainer else cardColor(),
+        contentColor = if (selected) c.onPrimaryContainer else c.onSurface,
+        shape = shape,
+        border = if (selected) BorderStroke(2.dp, c.primary) else null,
+        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (selected) Icon(Icons.Filled.Check, contentDescription = "Selected")
+        }
+    }
+}
+
+@Composable
+private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(20.dp)
+    Surface(
+        shape = shape,
+        color = cardColor(),
+        contentColor = c.onSurface,
+        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ChipRow(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        labels.forEachIndexed { i, label ->
+            val mod = Modifier.weight(1f).height(52.dp)
+            val pad = PaddingValues(horizontal = 6.dp)
+            if (i == selected) {
+                Button(onClick = { onSelect(i) }, modifier = mod, contentPadding = pad) {
+                    Text(label, maxLines = 2, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge)
+                }
+            } else {
+                OutlinedButton(onClick = { onSelect(i) }, modifier = mod, contentPadding = pad) {
+                    Text(label, maxLines = 2, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
 // ---------- Flow ----------
 
 @Composable
@@ -174,6 +212,7 @@ fun Onboarding(onDone: () -> Unit) {
         )
     }
     var offset by rememberSaveable { mutableStateOf(1) }
+    var stagger by rememberSaveable { mutableStateOf(0) }
     var buildNote by rememberSaveable { mutableStateOf<String?>(null) }
 
     when (step) {
@@ -194,13 +233,21 @@ fun Onboarding(onDone: () -> Unit) {
         "plan" -> PlanStep(
             offset = offset,
             onOffset = { offset = it },
+            stagger = stagger,
+            onStagger = { stagger = it },
             onRebuild = {
                 buildNote = "Offer a different version of the routine, in the same format."
                 step = "build"
             },
             onApprove = { tasks ->
                 Store.setTasks(tasks)
-                Store.chooseStartDay(LocalDate.now().toEpochDay() + offset)
+                val base = LocalDate.now().toEpochDay() + offset
+                if (Store.flow == FLOW_BOTH) {
+                    Store.chooseStart(FLOW_CIGARETTE, base + (if (stagger == 2) 7L else 0L))
+                    Store.chooseStart(FLOW_CANNABIS, base + (if (stagger == 1) 7L else 0L))
+                } else {
+                    Store.chooseStart(Store.flow, base)
+                }
                 step = "perms"
             }
         )
@@ -211,54 +258,55 @@ fun Onboarding(onDone: () -> Unit) {
 @Composable
 private fun PickStep(onPick: (String) -> Unit) {
     val c = MaterialTheme.colorScheme
-    Frame {
-        Spacer(Modifier.height(24.dp))
-        Heading("Quit with a plan that fits your day")
-        Muted("Dusk is a coach that learns how your day works, builds a daily routine, and reminds you at the moments that matter.")
-        Spacer(Modifier.height(8.dp))
-        Text("What are you quitting?", style = MaterialTheme.typography.titleMedium, color = c.onBackground)
-        OutlinedButton(
-            onClick = { onPick(FLOW_CIGARETTE) },
-            modifier = Modifier.fillMaxWidth().height(60.dp)
-        ) { Text("Cigarettes", fontSize = 18.sp) }
-        OutlinedButton(
-            onClick = { onPick(FLOW_CANNABIS) },
-            modifier = Modifier.fillMaxWidth().height(60.dp)
-        ) { Text("Cannabis", fontSize = 18.sp) }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Dusk is a coach, not a doctor. For medicines, ask a pharmacist or doctor.",
-            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-        )
-    }
-}
+    var cig by rememberSaveable { mutableStateOf(false) }
+    var can by rememberSaveable { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
-@Composable
-private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
-    val c = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(16.dp)
-    Surface(
-        shape = shape,
-        border = BorderStroke(1.dp, c.primary),
-        color = cardColor(),
-        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = c.onBackground)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        SunsetScene(
+            Modifier.fillMaxWidth().height(260.dp),
+            sunLevel = 0.35f, gulls = 3, island = 1, animate = !Store.reduceMotion
+        )
+        Column(
+            Modifier.navigationBarsPadding().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Heading("Every clear day is a sunset you keep")
+            Muted("Dusk builds a routine around your day and reminds you at the right moments. Every craving you ride out sets a gull free.")
+            Spacer(Modifier.height(4.dp))
+            Text("What are you quitting? Pick one or both.", style = MaterialTheme.typography.titleMedium)
+            SelectCard("Cigarettes", cig) { cig = !cig; error = null }
+            SelectCard("Cannabis", can) { can = !can; error = null }
+            error?.let { Text(it, color = c.error) }
+            Button(
+                onClick = {
+                    when {
+                        cig && can -> onPick(FLOW_BOTH)
+                        cig -> onPick(FLOW_CIGARETTE)
+                        can -> onPick(FLOW_CANNABIS)
+                        else -> error = "Pick at least one."
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) { Text("Continue") }
+            Text(
+                "Dusk is a coach, not a doctor. For medicines, ask a pharmacist or doctor.",
+                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
 private fun ModeStep(onTalk: () -> Unit, onTap: () -> Unit) {
+    val count = questionsFor(Store.flow).size
     Frame {
         Spacer(Modifier.height(24.dp))
         Heading("How do you want to set up?")
         Muted("Both end with the same plan. If typing feels like too much right now, just talk.")
         Spacer(Modifier.height(4.dp))
         ChoiceCard("Talk it through", "Say it out loud. Dusk listens and talks back.", onTalk)
-        ChoiceCard("Tap through questions", "Seven quick questions, mostly one tap each.", onTap)
+        ChoiceCard("Tap through questions", "$count quick questions, mostly one tap each.", onTap)
     }
 }
 
@@ -330,7 +378,12 @@ private fun IntakeStep(onFinish: () -> Unit) {
 
     Frame {
         Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(progress = { (qi + 1f) / qs.size }, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(
+            progress = { (qi + 1f) / qs.size },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = c.secondary,
+            trackColor = c.outlineVariant
+        )
         Text("Question ${qi + 1} of ${qs.size}", style = MaterialTheme.typography.labelLarge, color = c.onSurfaceVariant)
         Heading(q.text, 28)
 
@@ -352,7 +405,7 @@ private fun IntakeStep(onFinish: () -> Unit) {
             q.options.forEach { opt ->
                 val on = opt in selected
                 Row(
-                    Modifier.fillMaxWidth().clickable {
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable {
                         val updated = if (on) selected - opt else selected + opt
                         Store.setIntake(q.label, updated.joinToString(", "))
                         error = null
@@ -361,7 +414,7 @@ private fun IntakeStep(onFinish: () -> Unit) {
                 ) {
                     Checkbox(checked = on, onCheckedChange = null)
                     Spacer(Modifier.width(12.dp))
-                    Text(opt, style = MaterialTheme.typography.bodyLarge)
+                    Text(opt, style = MaterialTheme.typography.bodyLarge, color = c.onBackground)
                 }
             }
             error?.let { Text(it, color = c.error) }
@@ -383,7 +436,7 @@ private fun IntakeStep(onFinish: () -> Unit) {
 private fun planRequest(): String =
     "Here are my intake answers:\n" + Store.profileText() +
         "\n\nBuild my daily routine. My quit day isn't fixed yet, so plan for day 1. " +
-        "Reply with 2 to 3 sentences on how the plan fits me, then the routine block. Don't ask questions."
+        "Reply with at most 2 short sentences on how the plan fits me, then the routine block. Don't ask questions."
 
 /** Asks the coach for a routine. Returns null on success, otherwise a message to show. */
 private suspend fun buildPlan(note: String?): String? {
@@ -400,28 +453,52 @@ private suspend fun buildPlan(note: String?): String? {
     }
 }
 
+private val buildCaptions = listOf(
+    "Mapping your triggers", "Finding your swaps", "Placing your reminders", "Marking your milestones"
+)
+
 @Composable
 private fun BuildStep(note: String?, onReady: () -> Unit) {
     val c = MaterialTheme.colorScheme
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableStateOf(0) }
+    var caption by remember { mutableStateOf(0) }
 
     LaunchedEffect(attempt) {
         error = null
         error = buildPlan(note)
         if (error == null) onReady()
     }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2200)
+            caption = (caption + 1) % buildCaptions.size
+        }
+    }
+    val sun = if (Store.reduceMotion) 0.5f else rememberInfiniteTransition(label = "sun").animateFloat(
+        initialValue = 0.9f, targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "sink"
+    ).value
 
-    Frame {
-        Spacer(Modifier.height(48.dp))
-        if (error == null) {
-            CircularProgressIndicator()
-            Heading("Building your plan", 28)
-            Muted("Fitting a routine around your day and your triggers.")
-        } else {
-            Heading("That didn't work", 28)
-            Text(error ?: "", color = c.error)
-            Button(onClick = { attempt += 1 }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Try again") }
+    Column(Modifier.fillMaxSize()) {
+        SunsetScene(
+            Modifier.fillMaxWidth().weight(1f),
+            sunLevel = sun, gulls = 3, island = 1, animate = !Store.reduceMotion
+        )
+        Column(
+            Modifier.fillMaxWidth().background(cardColor()).navigationBarsPadding().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (error == null) {
+                Text(buildCaptions[caption], fontFamily = Fraunces, fontSize = 26.sp, textAlign = TextAlign.Center, color = c.onSurface)
+                Text("Fitting a routine around your day.", color = c.onSurfaceVariant, textAlign = TextAlign.Center)
+            } else {
+                Text("That didn't work", fontFamily = Fraunces, fontSize = 26.sp, color = c.onSurface)
+                Text(error ?: "", color = c.error, textAlign = TextAlign.Center)
+                Button(onClick = { attempt += 1 }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Try again") }
+            }
         }
     }
 }
@@ -430,6 +507,8 @@ private fun BuildStep(note: String?, onReady: () -> Unit) {
 private fun PlanStep(
     offset: Int,
     onOffset: (Int) -> Unit,
+    stagger: Int,
+    onStagger: (Int) -> Unit,
     onRebuild: () -> Unit,
     onApprove: (List<Task>) -> Unit
 ) {
@@ -438,75 +517,48 @@ private fun PlanStep(
     val tasks = Ai.routineIn(reply) ?: emptyList()
     val explanation = Ai.display(reply)
     val day1 = LocalDate.now().plusDays(offset.toLong())
+    val both = Store.flow == FLOW_BOTH
+    val quitLines = if (!both) listOf(flowName(Store.flow) to day1) else listOf(
+        "Cigarettes" to day1.plusDays(if (stagger == 2) 7L else 0L),
+        "Cannabis" to day1.plusDays(if (stagger == 1) 7L else 0L)
+    )
+    val offsets = listOf(0, 1, 3)
 
-    Frame {
-        Spacer(Modifier.height(8.dp))
-        Heading("Your plan", 32)
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Heading("Your plan")
         if (explanation.isNotBlank()) Muted(explanation)
 
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, c.primary),
-            color = cardColor(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Daily routine", style = MaterialTheme.typography.titleMedium, color = c.primary)
-                tasks.forEach { t ->
-                    Row {
-                        Text(t.time, Modifier.width(56.dp), color = c.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
-                        Column {
-                            Text(t.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            if (t.note.isNotBlank()) {
-                                Text(t.note, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
-                            }
-                            if (t.kind.isNotBlank()) {
-                                Spacer(Modifier.height(4.dp))
-                                KindChip(t.kind)
-                            }
-                        }
-                    }
-                }
-            }
+        QuitTiles(quitLines)
+
+        Text("When does day 1 start?", style = MaterialTheme.typography.titleMedium)
+        ChipRow(listOf("Today", "Tomorrow", "In 3 days"), offsets.indexOf(offset)) { onOffset(offsets[it]) }
+        if (both) {
+            Text("Quit both together, or one first?", style = MaterialTheme.typography.titleMedium)
+            ChipRow(listOf("Together", "Cigarettes first", "Cannabis first"), stagger, onStagger)
+            Text(
+                "One first means the other follows a week later.",
+                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            )
         }
 
-        Text("When does day 1 start?", style = MaterialTheme.typography.titleMedium, color = c.onBackground)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(0 to "Today", 1 to "Tomorrow", 3 to "In 3 days").forEach { (o, label) ->
-                val mod = Modifier.weight(1f)
-                if (offset == o) {
-                    Button(onClick = { onOffset(o) }, modifier = mod, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text(label, maxLines = 1)
-                    }
-                } else {
-                    OutlinedButton(onClick = { onOffset(o) }, modifier = mod, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text(label, maxLines = 1)
-                    }
-                }
-            }
-        }
-        Text(
-            if (offset == 0) "Starting today. Reminders begin right away."
-            else "A set date with a little prep time works better than drifting into it. You'll get a reminder the evening before to clear out anything you'd reach for.",
-            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-        )
+        TideChart(Store.substances(), day1)
+        SwapMagnet(tasks)
+        DayStrip(tasks)
+        RoutineMagnet(tasks)
+        personalNotes(Store.flow).forEachIndexed { i, n -> HeadsUp(n, if (i % 2 == 0) 1.2f else -1f) }
 
-        Text("What to expect", style = MaterialTheme.typography.titleMedium, color = c.onBackground)
-        timeline(Store.flow, day1).forEach { p ->
-            Row {
-                Text(p.whenText, Modifier.width(112.dp), style = MaterialTheme.typography.labelLarge, color = c.primary)
-                Text(p.what, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        personalNotes(Store.flow).forEach { Muted(it) }
         Text(
             "Timelines vary from person to person.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
         )
-
         Button(
             onClick = { if (tasks.isNotEmpty()) onApprove(tasks) },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) { Text("Use this routine") }
         TextButton(onClick = onRebuild, modifier = Modifier.fillMaxWidth()) { Text("Rebuild with a different mix") }
     }

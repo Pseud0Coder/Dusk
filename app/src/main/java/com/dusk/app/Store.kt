@@ -11,17 +11,22 @@ import org.json.JSONObject
 import java.time.LocalDate
 
 data class Msg(val role: String, val content: String)
-data class Task(val id: Int, val time: String, val title: String, val note: String = "", val kind: String = "")
+data class Task(
+    val id: Int, val time: String, val title: String,
+    val note: String = "", val kind: String = "", val replaces: String = ""
+)
 
 val KINDS = setOf("body", "mind", "food", "sleep", "social")
 
 const val DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 const val FLOW_CIGARETTE = "cigarette"
 const val FLOW_CANNABIS = "cannabis"
+const val FLOW_BOTH = "both"
 
 fun flowName(flow: String) = when (flow) {
     FLOW_CIGARETTE -> "Cigarettes"
     FLOW_CANNABIS -> "Cannabis"
+    FLOW_BOTH -> "Cigarettes and cannabis"
     else -> ""
 }
 
@@ -41,7 +46,8 @@ fun parseTasks(json: String): List<Task> {
         if (title.isEmpty()) continue
         val note = if (o.isNull("note")) "" else o.optString("note").trim()
         val kind = if (o.isNull("kind")) "" else o.optString("kind").trim().lowercase()
-        out.add(Task(0, "%02d:%02d".format(h, min), title, note, if (kind in KINDS) kind else ""))
+        val replaces = if (o.isNull("replaces")) "" else o.optString("replaces").trim().take(40)
+        out.add(Task(0, "%02d:%02d".format(h, min), title, note, if (kind in KINDS) kind else "", replaces))
     }
     return out.sortedBy { it.time }.mapIndexed { i, t -> t.copy(id = i + 1) }
 }
@@ -58,6 +64,12 @@ object Store {
     var model by mutableStateOf(DEFAULT_MODEL)
     var flow by mutableStateOf("")
     var startDay by mutableStateOf(-1L)
+    /** Cannabis quit day when quitting both (cigarettes use startDay). */
+    var startDay2 by mutableStateOf(-1L)
+    var banked by mutableStateOf(0)
+    private var gullTick by mutableStateOf(0)
+    /** Which substance the current craving is about, while a craving session is open. "" means not specified. */
+    var cravingFor by mutableStateOf<String?>(null)
     val messages = mutableStateListOf<Msg>()
     val tasks = mutableStateListOf<Task>()
     val done = mutableStateListOf<Int>()
@@ -84,10 +96,12 @@ object Store {
     private fun loadFlow() {
         messages.clear(); tasks.clear(); done.clear(); intake.clear()
         onboarded = false
-        startDay = -1L; doneDay = -1L
+        startDay = -1L; startDay2 = -1L; banked = 0; doneDay = -1L
         if (flow.isEmpty()) return
 
         startDay = prefs.getLong(k("start"), -1L)
+        startDay2 = prefs.getLong(k("start2"), -1L)
+        banked = prefs.getInt(k("banked"), 0)
         val ma = JSONArray(prefs.getString(k("msgs"), "[]"))
         for (i in 0 until ma.length()) {
             val o = ma.getJSONObject(i)
@@ -126,7 +140,71 @@ object Store {
     fun effectiveKey(): String = apiKey.trim().ifEmpty { BuildConfig.OPENROUTER_KEY }
 
     fun today(): Long = LocalDate.now().toEpochDay()
-    fun dayNumber(): Int = if (startDay < 0) 0 else (today() - startDay + 1).toInt()
+    /** Days since the first quit day (day 1 = the quit day). 0 if not started. */
+    fun dayNumber(): Int = firstStart().let { if (it < 0) 0 else (today() - it + 1).toInt() }
+
+    fun substances(): List<String> = when (flow) {
+        FLOW_BOTH -> listOf(FLOW_CIGARETTE, FLOW_CANNABIS)
+        "" -> emptyList()
+        else -> listOf(flow)
+    }
+
+    fun startOf(sub: String): Long = if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) startDay2 else startDay
+
+    fun dayOf(sub: String): Int = startOf(sub).let { if (it < 0) 0 else (today() - it + 1).toInt() }
+
+    fun firstStart(): Long = substances().map { startOf(it) }.filter { it >= 0 }.minOrNull() ?: -1L
+
+    fun chooseStart(sub: String, day: Long) {
+        if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) {
+            startDay2 = day
+            prefs.edit().putLong(k("start2"), day).apply()
+        } else {
+            startDay = day
+            prefs.edit().putLong(k("start"), day).apply()
+        }
+    }
+
+    fun gulls(sub: String): Int {
+        @Suppress("UNUSED_VARIABLE") val tick = gullTick
+        return prefs.getInt(k("gulls_$sub"), 0)
+    }
+
+    fun totalGulls(): Int = substances().sumOf { gulls(it) }
+
+    /** A craving was ridden out: one more gull in the sky. */
+    fun addGull(sub: String) {
+        prefs.edit().putInt(k("gulls_$sub"), gulls(sub) + 1).apply()
+        gullTick += 1
+        cravingFor = null
+    }
+
+    private fun liveSunsets(): Int {
+        val f = firstStart()
+        return if (f < 0) 0 else (today() - f).toInt().coerceAtLeast(0)
+    }
+
+    /** One sunset for every completed day since quitting. Never goes down, even after a slip. */
+    fun sunsets(): Int = banked + liveSunsets()
+
+    /** A slip restarts that substance's day count but keeps every sunset, gull and island piece. */
+    fun recordSlip(sub: String) {
+        val before = sunsets()
+        chooseStart(sub, today())
+        banked = (before - liveSunsets()).coerceAtLeast(0)
+        prefs.edit().putInt(k("banked"), banked).apply()
+    }
+
+    /** 0 bare island, 1 palm (3 sunsets), 2 hut (7), 3 boat (14), 4 lighthouse (30). */
+    fun islandLevel(): Int = sunsets().let {
+        when {
+            it >= 30 -> 4
+            it >= 14 -> 3
+            it >= 7 -> 2
+            it >= 3 -> 1
+            else -> 0
+        }
+    }
 
     fun saveSettings() {
         prefs.edit().putString("key", apiKey.trim()).putString("model", model.trim()).apply()
@@ -148,7 +226,7 @@ object Store {
         tasks.clear()
         tasks.addAll(list.sortedBy { it.time })
         val a = JSONArray()
-        tasks.forEach { a.put(JSONObject().put("time", it.time).put("title", it.title).put("note", it.note).put("kind", it.kind)) }
+        tasks.forEach { a.put(JSONObject().put("time", it.time).put("title", it.title).put("note", it.note).put("kind", it.kind).put("replaces", it.replaces)) }
         prefs.edit().putString(k("tasks"), a.toString()).apply()
         done.clear(); saveDone()
     }
@@ -176,8 +254,7 @@ object Store {
     }
 
     fun startToday() {
-        startDay = today()
-        prefs.edit().putLong(k("start"), startDay).apply()
+        substances().forEach { chooseStart(it, today()) }
     }
 
     fun setIntake(label: String, value: String) {

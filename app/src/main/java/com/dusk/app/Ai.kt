@@ -21,11 +21,14 @@ object Ai {
 
     private fun context(): String {
         val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm"))
-        val until = Store.startDay - Store.today()
-        val day = when {
-            Store.startDay < 0 -> "Quit day not set yet."
-            until > 0 -> "The quit day is in $until day(s). The person is still preparing."
-            else -> "Today is day ${Store.dayNumber()} since the quit day."
+        val today = Store.today()
+        val day = Store.substances().joinToString("\n") { s ->
+            val st = Store.startOf(s)
+            when {
+                st < 0 -> "${flowName(s)}: quit day not set yet."
+                st > today -> "${flowName(s)}: quit day is in ${st - today} day(s), still preparing."
+                else -> "${flowName(s)}: day ${today - st + 1} since quitting."
+            }
         }
         val profile = if (Store.intake.isEmpty()) "" else
             "\nIntake answers (already collected in the app):\n" + Store.profileText()

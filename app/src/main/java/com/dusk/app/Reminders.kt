@@ -49,8 +49,9 @@ object Reminders {
         val am = ctx.getSystemService(AlarmManager::class.java)
         val pi = prepIntent(ctx)
         am.cancel(pi)
-        if (Store.startDay <= Store.today()) return
-        val t = LocalDate.ofEpochDay(Store.startDay - 1).atTime(18, 0)
+        val first = Store.firstStart()
+        if (first <= Store.today()) return
+        val t = LocalDate.ofEpochDay(first - 1).atTime(18, 0)
         if (!t.isAfter(LocalDateTime.now())) return
         val at = t.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         if (canExact(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
@@ -123,7 +124,7 @@ class ReminderReceiver : BroadcastReceiver() {
         if (intent.action == Reminders.ACTION_PREP) {
             Reminders.show(
                 ctx, Reminders.PREP_ID, "Day 1 is tomorrow",
-                "Clear out anything you'd reach for, and tell one person your plan.", withDone = false
+                "Tonight, clear out anything you'd reach for. Tomorrow's sunset is the first one you'll collect.", withDone = false
             )
             return
         }
@@ -136,7 +137,7 @@ class ReminderReceiver : BroadcastReceiver() {
             }
             else -> {
                 // Before day 1 the routine stays quiet; it starts on the quit day.
-                val preparing = Store.startDay >= 0 && Store.today() < Store.startDay
+                val preparing = Store.firstStart() >= 0 && Store.today() < Store.firstStart()
                 if (!preparing) {
                     Reminders.show(ctx, id, task.title, task.note.ifBlank { "It's ${task.time}. Time for this one." })
                 }

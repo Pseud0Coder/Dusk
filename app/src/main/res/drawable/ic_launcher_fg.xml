@@ -1,8 +1,17 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="5"
-        android:pathData="M36,54 A18,18 0 1,1 72,54 A18,18 0 1,1 36,54 Z" />
-    <path android:fillColor="#F28B6B"
-        android:pathData="M49,54 A5,5 0 1,1 59,54 A5,5 0 1,1 49,54 Z" />
+    <!-- Sun, half set -->
+    <path android:fillColor="#FFE29A"
+        android:pathData="M37,62 A17,17 0 1,1 71,62 A17,17 0 1,1 37,62 Z" />
+    <!-- Sea -->
+    <path android:fillColor="#4F9AA3" android:pathData="M0,62h108v46h-108z" />
+    <!-- Waves -->
+    <path android:strokeColor="#9FD0D4" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M34,71 L74,71" />
+    <path android:strokeColor="#9FD0D4" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M43,79 L65,79" />
+    <!-- One gull -->
+    <path android:strokeColor="#1F3A4D" android:strokeWidth="2.2" android:strokeLineCap="round"
+        android:pathData="M60,41 Q63,37.5 66,41 Q69,37.5 72,41" />
 </vector>

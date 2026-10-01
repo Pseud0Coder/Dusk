@@ -24,6 +24,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -465,14 +466,25 @@ fun VoiceScreen(
                 Spacer(Modifier.height(16.dp))
                 Text(status, style = MaterialTheme.typography.titleMedium, color = c.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier
-                        .size(220.dp)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .clip(CircleShape)
-                        .background(Brush.radialGradient(OrbColors))
-                        .clickable(onClickLabel = "Talk") { tapOrb() }
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .size(220.dp)
+                            .graphicsLayer {
+                                val r = if (Store.reduceMotion) 1.12f else scale * 1.18f
+                                scaleX = r; scaleY = r
+                            }
+                            .border(2.dp, OrbColors[1].copy(alpha = 0.5f), CircleShape)
+                    )
+                    Box(
+                        Modifier
+                            .size(220.dp)
+                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                            .clip(CircleShape)
+                            .background(Brush.radialGradient(OrbColors))
+                            .clickable(onClickLabel = "Talk") { tapOrb() }
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
