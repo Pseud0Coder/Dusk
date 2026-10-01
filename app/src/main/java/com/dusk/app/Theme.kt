@@ -3,6 +3,10 @@ package com.dusk.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,13 +57,13 @@ private val GoldenHour = lightColorScheme(
     secondaryContainer = Color(0xFFFFE6CF), onSecondaryContainer = Color(0xFF6A3510),
     tertiary = Color(0xFF4E9A78), onTertiary = Color.White,
     background = Color(0xFFF6E7D3), onBackground = SeaInk,
-    surface = Color(0xFFFFF6EC), onSurface = SeaInk,
-    surfaceVariant = Color(0xFFF3E2CF), onSurfaceVariant = Color(0xFF4A6272),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFFF8F0),
-    surfaceContainer = Color(0xFFFCF0E3),
-    surfaceContainerHigh = Color(0xFFF8EADB),
-    surfaceContainerHighest = Color(0xFFF3E2CF),
+    surface = Color(0xFFFFE6D6), onSurface = SeaInk,
+    surfaceVariant = Color(0xFFFFD9C2), onSurfaceVariant = Color(0xFF4A6272),
+    surfaceContainerLowest = Color(0xFFFFEBDD),
+    surfaceContainerLow = Color(0xFFFFE6D6),
+    surfaceContainer = Color(0xFFFFE0CC),
+    surfaceContainerHigh = Color(0xFFFFDAC4),
+    surfaceContainerHighest = Color(0xFFFFD3BA),
     outline = Color(0xFFB59C80), outlineVariant = Color(0xFFEAD8C2),
 )
 
@@ -80,7 +84,7 @@ private val Twilight = darkColorScheme(
     outline = Color(0xFF7088A8), outlineVariant = Color(0xFF34486A),
 )
 
-private val GoldenBackground = listOf(Color(0xFFFFE3CC), Color(0xFFFBDCCB), Color(0xFFF6E7D3))
+private val GoldenBackground = listOf(Color(0xFFFFD6BC), Color(0xFFFBCFC2), Color(0xFFF8DCC4))
 private val TwilightBackground = listOf(Color(0xFF14223A), Color(0xFF1A2A44), Color(0xFF2A2F3E))
 
 /** The voice circle: a setting sun. */
@@ -137,9 +141,10 @@ fun DuskTheme(content: @Composable () -> Unit) {
 
 // ---------- Building blocks ----------
 
-/** Translucent card color that lets the sky glow through. */
+/** A warm coral (or, at twilight, sea) tint. Never a white box on the colorful sky. */
 @Composable
-fun cardColor(): Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+fun cardColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF4F9AA3).copy(alpha = 0.20f) else Color(0xFFFF9F80).copy(alpha = 0.24f)
 
 /** Card with the right text color built in. */
 @Composable
@@ -165,7 +170,7 @@ enum class Tone { Coral, Sea, Sand, Gold, Mint }
 fun tone(t: Tone): Duo = if (!isSystemInDarkTheme()) when (t) {
     Tone.Coral -> d(0xFFFF9F80, 0xFF3A140A)
     Tone.Sea -> d(0xFF2F7F86, 0xFFFFFFFF)
-    Tone.Sand -> d(0xFFFFF6EC, 0xFF1F3A4D)
+    Tone.Sand -> d(0xFFCFE3EE, 0xFF1F3A4D)
     Tone.Gold -> d(0xFFFFD27A, 0xFF4A3200)
     Tone.Mint -> d(0xFFD6EEEA, 0xFF1F4E47)
 } else when (t) {
@@ -198,14 +203,14 @@ fun kindDuo(kind: String): Duo = if (!isSystemInDarkTheme()) when (kind) {
 fun KindChip(kind: String) {
     if (kind.isBlank()) return
     val k = kindDuo(kind)
-    Text(
-        kind,
-        style = MaterialTheme.typography.labelSmall,
-        color = k.fg,
-        modifier = Modifier
-            .background(k.bg, RoundedCornerShape(50))
-            .padding(horizontal = 9.dp, vertical = 3.dp)
-    )
+    Row(
+        Modifier.background(k.bg, RoundedCornerShape(50)).padding(horizontal = 9.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TIcon(kindIcon(kind), size = 14.dp, tint = k.fg)
+        Spacer(Modifier.width(4.dp))
+        Text(kind, style = MaterialTheme.typography.labelSmall, color = k.fg)
+    }
 }
 
 /** Colors for the island scene. */

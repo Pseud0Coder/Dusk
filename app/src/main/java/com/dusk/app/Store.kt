@@ -77,6 +77,9 @@ object Store {
     var onboarded by mutableStateOf(false)
     var tipsSeen by mutableStateOf(false)
     var reduceMotion by mutableStateOf(false)
+    /** "kokoro" (on-device, once downloaded) or "phone". */
+    var voiceEngine by mutableStateOf("kokoro")
+    var kokoroVoice by mutableStateOf(1)
     val intake = mutableStateListOf<Pair<String, String>>()
 
     private fun k(name: String) = "${name}_$flow"
@@ -89,6 +92,8 @@ object Store {
         flow = prefs.getString("flow", "") ?: ""
         tipsSeen = prefs.getBoolean("tips_seen", false)
         reduceMotion = prefs.getBoolean("reduce_motion", false)
+        voiceEngine = prefs.getString("voice_engine", "kokoro") ?: "kokoro"
+        kokoroVoice = prefs.getInt("kokoro_voice", 1)
         loadFlow()
         loaded = true
     }
@@ -286,6 +291,16 @@ object Store {
     fun chooseStartDay(day: Long) {
         startDay = day
         prefs.edit().putLong(k("start"), day).apply()
+    }
+
+    fun updateVoiceEngine(v: String) {
+        voiceEngine = v
+        prefs.edit().putString("voice_engine", v).apply()
+    }
+
+    fun updateKokoroVoice(sid: Int) {
+        kokoroVoice = sid
+        prefs.edit().putInt("kokoro_voice", sid).apply()
     }
 
     fun updateReduceMotion(on: Boolean) {

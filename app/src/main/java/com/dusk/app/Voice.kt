@@ -161,7 +161,11 @@ class Speaker(context: Context) {
     suspend fun speak(text: String) {
         val clean = text.trim()
         if (clean.isEmpty()) return
-        val file = CloudTts.synthesize(ctx, clean)
+        val file = if (Store.voiceEngine == "kokoro" && Kokoro.ready(ctx)) {
+            Kokoro.synthesize(ctx, clean, Store.kokoroVoice) ?: CloudTts.synthesize(ctx, clean)
+        } else {
+            CloudTts.synthesize(ctx, clean)
+        }
         if (file != null && play(file)) return
         speakLocal(clean)
     }
@@ -406,6 +410,8 @@ fun VoiceScreen(
         micDenied = !granted
     }
 
+    LaunchedEffect(Unit) { if (Store.voiceEngine == "kokoro") Kokoro.warm(ctx) }
+
     LaunchedEffect(micOk) {
         if (micOk && recognizerOk && job == null) startTurn(opening)
     }
@@ -505,8 +511,16 @@ fun VoiceScreen(
         }
         Spacer(Modifier.height(20.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { leave(onType) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("Type instead") }
-            OutlinedButton(onClick = { leave(onExit) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("End") }
+            OutlinedButton(onClick = { leave(onType) }, modifier = Modifier.weight(1f).height(48.dp)) {
+                TIcon(R.drawable.ic_t_keyboard, size = 18.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Type instead")
+            }
+            OutlinedButton(onClick = { leave(onExit) }, modifier = Modifier.weight(1f).height(48.dp)) {
+                TIcon(R.drawable.ic_t_x, size = 18.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("End")
+            }
         }
     }
 }

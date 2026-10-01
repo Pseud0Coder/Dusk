@@ -57,10 +57,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class Screen(val label: String, val icon: ImageVector) {
-    Today("Today", Icons.Filled.Home),
-    Coach("Coach", Icons.Filled.Face),
-    Setup("Settings", Icons.Filled.Settings),
+enum class Screen(val label: String, val icon: Int) {
+    Today("Today", R.drawable.ic_t_sunset_2),
+    Coach("Coach", R.drawable.ic_t_message_circle),
+    Setup("Settings", R.drawable.ic_t_adjustments_horizontal),
 }
 
 private fun cravingWord(sub: String) = if (sub == FLOW_CIGARETTE) "cigarette" else "cannabis"
@@ -125,7 +125,7 @@ fun App() {
                     NavigationBarItem(
                         selected = screen == s,
                         onClick = { screen = s },
-                        icon = { Icon(s.icon, contentDescription = null) },
+                        icon = { TIcon(s.icon, size = 24.dp) },
                         label = { Text(s.label) },
                         colors = NavigationBarItemDefaults.colors(
                             indicatorColor = MaterialTheme.colorScheme.primaryContainer,
@@ -203,7 +203,11 @@ fun TipCard(text: String, last: Boolean, onNext: () -> Unit) {
         shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(text, style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.Top) {
+                TIcon(R.drawable.ic_t_bulb, size = 22.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(text, style = MaterialTheme.typography.bodyLarge)
+            }
             TextButton(
                 onClick = onNext, contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.textButtonColors(contentColor = c.onPrimaryContainer)
@@ -218,28 +222,31 @@ fun MilestoneRow(day: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         MILESTONES.forEach { m ->
             val reached = day >= m
-            Text(
-                "Day $m",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (reached) c.onPrimary else c.onSurface,
-                modifier = Modifier
+            val fg = if (reached) c.onPrimary else c.onSurface
+            Row(
+                Modifier
                     .background(if (reached) c.primary else cardColor(), RoundedCornerShape(50))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            )
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TIcon(R.drawable.ic_t_flag, size = 14.dp, tint = fg)
+                Spacer(Modifier.width(4.dp))
+                Text("$m", style = MaterialTheme.typography.labelMedium, color = fg)
+            }
         }
     }
 }
 
 @Composable
-fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
-    Surface(
-        color = cardColor(), contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(18.dp), modifier = modifier
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(value, fontFamily = Fraunces, fontSize = 26.sp, lineHeight = 30.sp)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+fun StatTile(icon: Int, value: String, label: String, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Column(modifier.padding(vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TIcon(icon, size = 22.dp, tint = c.primary)
+            Spacer(Modifier.width(6.dp))
+            Text(value, fontFamily = Fraunces, fontSize = 28.sp, lineHeight = 32.sp)
         }
+        Text(label, style = MaterialTheme.typography.labelMedium, color = c.onSurfaceVariant)
     }
 }
 
@@ -251,7 +258,11 @@ fun CravingBanner(onTalk: () -> Unit) {
     val subs = if (sub.isBlank()) Store.substances() else listOf(sub)
     Surface(color = d.bg, contentColor = d.fg, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Riding out a craving", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TIcon(R.drawable.ic_t_ripple, size = 22.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Riding out a craving", style = MaterialTheme.typography.titleMedium)
+            }
             Text("Cravings usually pass within minutes. When this one does, let it go.", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 subs.forEach { s ->
@@ -277,6 +288,8 @@ fun RoutineTile(t: Task, done: Boolean, open: Boolean, onToggle: () -> Unit, onO
     Surface(color = k.bg, contentColor = k.fg, shape = shape, modifier = modifier.clip(shape).clickable(onClick = onOpen)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TIcon(kindIcon(t.kind), size = 18.dp, tint = k.fg)
+                Spacer(Modifier.width(6.dp))
                 Text(t.time, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                 Box(
                     Modifier.size(32.dp).clip(CircleShape)
@@ -400,9 +413,9 @@ fun TodayScreen(
         item {
             Row(side, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val g = Store.totalGulls()
-                StatTile("$g", if (g == 1) "gull set free" else "gulls set free", Modifier.weight(1f))
-                StatTile("${Store.sunsets()}", "sunsets kept", Modifier.weight(1f))
-                StatTile("$doneCount/$total", "done today", Modifier.weight(1f))
+                StatTile(R.drawable.ic_gull, "$g", if (g == 1) "gull set free" else "gulls set free", Modifier.weight(1f))
+                StatTile(R.drawable.ic_t_sunset_2, "${Store.sunsets()}", "sunsets kept", Modifier.weight(1f))
+                StatTile(R.drawable.ic_t_circle_check, "$doneCount/$total", "done today", Modifier.weight(1f))
             }
         }
 
@@ -412,18 +425,30 @@ fun TodayScreen(
                     onClick = { if (subs.size > 1) pickCraving = !pickCraving else onCraving(subs.first()) },
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
-                ) { Text("Craving? Ride it out", fontWeight = FontWeight.SemiBold) }
+                ) {
+                    TIcon(R.drawable.ic_t_ripple, size = 22.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Craving? Ride it out", fontWeight = FontWeight.SemiBold)
+                }
                 if (pickCraving) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         subs.forEach { s ->
                             OutlinedButton(
                                 onClick = { pickCraving = false; onCraving(s) },
                                 modifier = Modifier.weight(1f).height(52.dp)
-                            ) { Text(flowName(s)) }
+                            ) {
+                                TIcon(substanceIcon(s), size = 18.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(flowName(s))
+                            }
                         }
                     }
                 }
-                TextButton(onClick = onTalk, modifier = Modifier.fillMaxWidth()) { Text("Rather talk it through? Use voice") }
+                TextButton(onClick = onTalk, modifier = Modifier.fillMaxWidth()) {
+                    TIcon(R.drawable.ic_t_microphone, size = 18.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Rather talk it through? Use voice")
+                }
             }
         }
 
@@ -443,7 +468,11 @@ fun TodayScreen(
             item {
                 Box(side) {
                     GlassCard {
-                        Text("Before day 1", style = MaterialTheme.typography.titleMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TIcon(R.drawable.ic_t_checklist, size = 22.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Before day 1", style = MaterialTheme.typography.titleMedium)
+                        }
                         Spacer(Modifier.height(6.dp))
                         prepLines(Store.flow).forEach {
                             Text("\u2022  $it", color = c.onSurfaceVariant, modifier = Modifier.padding(vertical = 2.dp))
@@ -457,11 +486,11 @@ fun TodayScreen(
         }
 
         item {
-            Text(
-                if (prep) "Your routine, from day 1" else "Today's routine",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = side
-            )
+            Row(side, verticalAlignment = Alignment.CenterVertically) {
+                TIcon(R.drawable.ic_t_list_check, size = 22.dp, tint = c.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(if (prep) "Your routine, from day 1" else "Today's routine", style = MaterialTheme.typography.titleMedium)
+            }
         }
         if (Store.tasks.isEmpty()) {
             item {
@@ -490,7 +519,11 @@ fun TodayScreen(
         if (sunsets > 0) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Your sunsets", style = MaterialTheme.typography.titleMedium, modifier = side)
+                    Row(side, verticalAlignment = Alignment.CenterVertically) {
+                        TIcon(R.drawable.ic_t_sunset_2, size = 22.dp, tint = c.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Your sunsets", style = MaterialTheme.typography.titleMedium)
+                    }
                     Row(
                         Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -504,6 +537,8 @@ fun TodayScreen(
         if (first in 0..today) {
             item {
                 TextButton(onClick = { slipDialog = true }, modifier = side.fillMaxWidth()) {
+                    TIcon(R.drawable.ic_t_refresh, size = 18.dp, tint = c.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
                     Text("I slipped", color = c.onSurfaceVariant)
                 }
             }
@@ -590,7 +625,9 @@ fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onSend: (Str
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            TextButton(onClick = onVoice, modifier = Modifier.padding(bottom = 4.dp)) { Text("Talk") }
+            IconButton(onClick = onVoice, modifier = Modifier.padding(bottom = 4.dp)) {
+                TIcon(R.drawable.ic_t_microphone, size = 24.dp, tint = c.primary, desc = "Talk")
+            }
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
@@ -606,7 +643,7 @@ fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onSend: (Str
             IconButton(
                 onClick = { onSend(input); input = "" },
                 enabled = !busy && input.isNotBlank()
-            ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send") }
+            ) { TIcon(R.drawable.ic_t_send, size = 24.dp, tint = c.primary, desc = "Send") }
         }
     }
 }
@@ -660,92 +697,209 @@ fun RoutineCard(tasks: List<Task>, onUse: () -> Unit) {
 // ---------- Settings ----------
 
 @Composable
+private fun SectionTitle(icon: Int, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TIcon(icon, size = 22.dp, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun Choice(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val pad = PaddingValues(horizontal = 8.dp)
+    if (selected) {
+        Button(onClick = onClick, modifier = modifier, contentPadding = pad) { Text(label, maxLines = 1) }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier, contentPadding = pad) { Text(label, maxLines = 1) }
+    }
+}
+
+@Composable
+private fun IconAction(icon: Int, label: String, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        TIcon(icon, size = 18.dp)
+        Spacer(Modifier.width(10.dp))
+        Text(label)
+    }
+}
+
+@Composable
 fun SettingsScreen() {
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
     var key by rememberSaveable { mutableStateOf(Store.apiKey) }
     var model by rememberSaveable { mutableStateOf(Store.model) }
     var confirmClear by remember { mutableStateOf(false) }
+    var kokoroReady by remember { mutableStateOf(Kokoro.ready(ctx)) }
+    var dlError by remember { mutableStateOf<String?>(null) }
+    var previewing by remember { mutableStateOf(false) }
+    val speaker = remember { Speaker(ctx) }
+    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
 
-    Surface(
-        color = cardColor(), contentColor = c.onSurface, shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text("Settings", fontFamily = Fraunces, fontSize = 34.sp)
+        Text("Settings", fontFamily = Fraunces, fontSize = 34.sp)
 
-            Text("Quitting", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(FLOW_CIGARETTE to "Cigarettes", FLOW_CANNABIS to "Cannabis", FLOW_BOTH to "Both").forEach { (f, label) ->
-                    val mod = Modifier.weight(1f)
-                    val pad = PaddingValues(horizontal = 4.dp)
-                    if (Store.flow == f) {
-                        Button(onClick = {}, modifier = mod, contentPadding = pad) { Text(label, maxLines = 1) }
-                    } else {
-                        OutlinedButton(onClick = { Store.setFlow(ctx, f) }, modifier = mod, contentPadding = pad) { Text(label, maxLines = 1) }
+        // Quitting
+        SectionTitle(substanceIcon(if (Store.flow == FLOW_CANNABIS) FLOW_CANNABIS else FLOW_CIGARETTE), "Quitting")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(FLOW_CIGARETTE to "Cigarettes", FLOW_CANNABIS to "Cannabis", FLOW_BOTH to "Both").forEach { (f, label) ->
+                Choice(label, Store.flow == f, Modifier.weight(1f)) { if (Store.flow != f) Store.setFlow(ctx, f) }
+            }
+        }
+        Text(
+            "Each keeps its own chat, routine, sunsets, and gulls. Reminders follow the one you pick.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+
+        HorizontalDivider(color = c.outlineVariant)
+
+        // Voice
+        SectionTitle(R.drawable.ic_t_microphone, "Voice")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Kokoro", Store.voiceEngine == "kokoro", Modifier.weight(1f)) { Store.updateVoiceEngine("kokoro") }
+            Choice("Phone voice", Store.voiceEngine == "phone", Modifier.weight(1f)) { Store.updateVoiceEngine("phone") }
+        }
+        if (Store.voiceEngine == "kokoro") {
+            val p = Kokoro.progress
+            when {
+                kokoroReady -> {
+                    Text("Pick a voice", style = MaterialTheme.typography.labelLarge, color = c.onSurfaceVariant)
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Kokoro.voices.forEach { v ->
+                            Choice(v.name, Store.kokoroVoice == v.sid) { Store.updateKokoroVoice(v.sid) }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (!previewing) {
+                                previewing = true
+                                scope.launch {
+                                    speaker.speak("Hi, I'm Dusk. I'm here whenever you need me.")
+                                    previewing = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TIcon(R.drawable.ic_t_sparkles, size = 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(if (previewing) "Speaking…" else "Hear this voice")
+                    }
+                    TextButton(onClick = { Kokoro.delete(ctx); kokoroReady = false }) {
+                        TIcon(R.drawable.ic_t_trash, size = 18.dp, tint = c.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Remove download", color = c.onSurfaceVariant)
                     }
                 }
-            }
-            Text(
-                "Each keeps its own chat, routine, sunsets, and gulls. Reminders follow the one you pick.",
-                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-            )
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = c.outlineVariant)
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Reduce motion", style = MaterialTheme.typography.titleMedium)
-                    Text("Keeps the sky, gulls, and sun still.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                p != null -> {
+                    LinearProgressIndicator(
+                        progress = { p },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = c.secondary, trackColor = c.outlineVariant
+                    )
+                    Text("Downloading and unpacking, ${(p * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
                 }
-                Switch(checked = Store.reduceMotion, onCheckedChange = { Store.updateReduceMotion(it) })
+                else -> {
+                    Text(
+                        "Kokoro is a free, natural voice that runs on your phone, even offline. " +
+                            "It's a one-time ${Kokoro.SIZE_MB} MB download, best on Wi-Fi. Until then, Dusk uses the phone voice.",
+                        style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            dlError = null
+                            scope.launch {
+                                dlError = Kokoro.download(ctx)
+                                kokoroReady = Kokoro.ready(ctx)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TIcon(R.drawable.ic_t_download, size = 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Download Kokoro")
+                    }
+                    dlError?.let { Text(it, color = c.error, style = MaterialTheme.typography.bodySmall) }
+                }
             }
-
-            OutlinedButton(onClick = {
-                Reminders.show(ctx, 9_999, "Dusk", "Reminders are working.", withDone = false)
-            }, modifier = Modifier.fillMaxWidth()) { Text("Send a test notification") }
-
-            if (!Reminders.canExact(ctx) && Build.VERSION.SDK_INT >= 31) {
-                OutlinedButton(onClick = {
-                    ctx.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
-                }, modifier = Modifier.fillMaxWidth()) { Text("Allow on-time reminders") }
-            }
-
-            OutlinedButton(onClick = { Store.redoOnboarding() }, modifier = Modifier.fillMaxWidth()) { Text("Redo setup questions") }
-            OutlinedButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Clear chat") }
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = c.outlineVariant)
-
-            Text("Coach", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = key, onValueChange = { key = it },
-                label = { Text("Your own OpenRouter key (optional)") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = model, onValueChange = { model = it },
-                label = { Text("Model") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+        } else {
             Text(
-                if (BuildConfig.OPENROUTER_KEY.isNotBlank()) "Leave the key empty to use the one built into the app. Voice: ${CloudTts.engineName()}."
-                else "No key is built into this version, so add yours here. Voice: ${CloudTts.engineName()}.",
+                "Using ${if (CloudTts.engineName() == "On-device") "your phone's built-in voice" else CloudTts.engineName()}.",
                 style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
             )
-            Button(onClick = {
-                Store.apiKey = key.trim()
-                Store.model = model.trim().ifBlank { DEFAULT_MODEL }
-                model = Store.model
-                Store.saveSettings()
-                Toast.makeText(ctx, "Saved", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
         }
+
+        HorizontalDivider(color = c.outlineVariant)
+
+        // Themes, coming next
+        SectionTitle(R.drawable.ic_t_palette, "Themes")
+        Text(
+            "Coming next: complete themes that change the whole design, not just the colors. Island sunset is the default.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+
+        HorizontalDivider(color = c.outlineVariant)
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TIcon(R.drawable.ic_t_wind, size = 22.dp, tint = c.primary)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Reduce motion", style = MaterialTheme.typography.titleMedium)
+                Text("Keeps the sky, gulls, and sun still.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+            }
+            Switch(checked = Store.reduceMotion, onCheckedChange = { Store.updateReduceMotion(it) })
+        }
+
+        IconAction(R.drawable.ic_t_bell, "Send a test notification") {
+            Reminders.show(ctx, 9_999, "Dusk", "Reminders are working.", withDone = false)
+        }
+        if (!Reminders.canExact(ctx) && Build.VERSION.SDK_INT >= 31) {
+            IconAction(R.drawable.ic_t_clock, "Allow on-time reminders") {
+                ctx.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+            }
+        }
+        IconAction(R.drawable.ic_t_refresh, "Redo setup questions") { Store.redoOnboarding() }
+        IconAction(R.drawable.ic_t_trash, "Clear chat") { confirmClear = true }
+
+        HorizontalDivider(color = c.outlineVariant)
+
+        // Coach
+        SectionTitle(R.drawable.ic_t_key, "Coach")
+        OutlinedTextField(
+            value = key, onValueChange = { key = it },
+            label = { Text("Your own OpenRouter key (optional)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = model, onValueChange = { model = it },
+            label = { Text("Model") },
+            leadingIcon = { TIcon(R.drawable.ic_t_cpu, size = 20.dp) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            if (BuildConfig.OPENROUTER_KEY.isNotBlank()) "Leave the key empty to use the one built into the app."
+            else "No key is built into this version, so add yours here.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+        Button(onClick = {
+            Store.apiKey = key.trim()
+            Store.model = model.trim().ifBlank { DEFAULT_MODEL }
+            model = Store.model
+            Store.saveSettings()
+            Toast.makeText(ctx, "Saved", Toast.LENGTH_SHORT).show()
+        }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
     }
 
     if (confirmClear) {

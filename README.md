@@ -18,7 +18,7 @@ Add these in the repo under Settings > Secrets and variables > Actions > New rep
 | `INWORLD_KEY` | Optional. Natural voice via Inworld TTS (Basic auth key). `INWORLD_VOICE` and `INWORLD_MODEL` are optional overrides (defaults: `Sarah`, `inworld-tts-2`). |
 | `FISH_KEY` | Optional. Natural voice via Fish Audio. `FISH_VOICE_ID` picks a voice from their library; `FISH_MODEL` defaults to `s2.1-pro`. |
 
-With no voice key, voice mode uses the phone's free on-device speech. Inworld is used if both voice keys are set.
+Voice options: Kokoro (free, natural, runs on the phone after a one-time 103 MB download from Settings), Inworld or Fish Audio if their keys are set, or the phone's built-in voice. The app ships for 64-bit ARM phones.
 
 ## Voice mode
 During setup you can choose "Talk it through" instead of tapping through questions. Dusk speaks, listens, and builds the same plan from the conversation. Voice is also available from the Coach tab and under the craving button.

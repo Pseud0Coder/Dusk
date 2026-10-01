@@ -56,12 +56,21 @@ fun Magnet(
     }
 }
 
+@Composable
+fun MagnetTitle(icon: Int, text: String, style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleSmall) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TIcon(icon, size = 18.dp)
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = style)
+    }
+}
+
 /** Two big tiles: the quit day and the first milestone. */
 @Composable
 fun QuitTiles(lines: List<Pair<String, LocalDate>>) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Magnet(Tone.Coral, -2f, Modifier.weight(1f)) {
-            Text("Quit day", style = MaterialTheme.typography.labelMedium)
+            MagnetTitle(R.drawable.ic_t_calendar_event, "Quit day", MaterialTheme.typography.labelMedium)
             lines.forEach { (label, date) ->
                 if (lines.size > 1) Text(label, style = MaterialTheme.typography.labelSmall)
                 Text(
@@ -72,7 +81,7 @@ fun QuitTiles(lines: List<Pair<String, LocalDate>>) {
             Text(lines.first().second.format(DateTimeFormatter.ofPattern("MMMM")), style = MaterialTheme.typography.labelMedium)
         }
         Magnet(Tone.Sea, 1.5f, Modifier.weight(1f)) {
-            Text("First milestone", style = MaterialTheme.typography.labelMedium)
+            MagnetTitle(R.drawable.ic_t_flag, "First milestone", MaterialTheme.typography.labelMedium)
             Text("Day 3", fontFamily = Fraunces, fontSize = 32.sp, lineHeight = 34.sp)
             Text(lines.first().second.plusDays(2).format(shortDate), style = MaterialTheme.typography.labelMedium)
         }
@@ -103,7 +112,7 @@ private fun valueAt(curve: List<Pair<Float, Float>>, day: Float): Float {
 fun TideChart(subs: List<String>, day1: LocalDate) {
     val c = MaterialTheme.colorScheme
     Magnet(Tone.Sand, -0.8f, Modifier.fillMaxWidth()) {
-        Text("Withdrawal tide", style = MaterialTheme.typography.titleSmall)
+        MagnetTitle(R.drawable.ic_t_wave_sine, "Withdrawal tide")
         Canvas(Modifier.fillMaxWidth().height(96.dp)) {
             val w = size.width
             val h = size.height
@@ -161,7 +170,7 @@ fun SwapMagnet(tasks: List<Task>) {
     val swaps = tasks.filter { it.replaces.isNotBlank() }
     if (swaps.isEmpty()) return
     Magnet(Tone.Mint, 0.8f, Modifier.fillMaxWidth()) {
-        Text("Your triggers, swapped", style = MaterialTheme.typography.titleSmall)
+        MagnetTitle(R.drawable.ic_t_arrows_exchange, "Your triggers, swapped")
         swaps.forEach { t ->
             Row(verticalAlignment = Alignment.Top) {
                 Text(
@@ -185,7 +194,7 @@ fun DayStrip(tasks: List<Task>) {
     val first = minutes(tasks.first().time)
     val last = minutes(tasks.last().time).coerceAtLeast(first + 1)
     Magnet(Tone.Sand, -1f, Modifier.fillMaxWidth()) {
-        Text("Your day", style = MaterialTheme.typography.titleSmall)
+        MagnetTitle(R.drawable.ic_t_clock, "Your day")
         BoxWithConstraints(Modifier.fillMaxWidth().height(26.dp)) {
             Box(
                 Modifier.align(Alignment.CenterStart).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
@@ -215,7 +224,11 @@ fun DayStrip(tasks: List<Task>) {
 @Composable
 fun HeadsUp(text: String, tilt: Float) {
     Magnet(Tone.Gold, tilt, Modifier.fillMaxWidth()) {
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        Row(verticalAlignment = Alignment.Top) {
+            TIcon(R.drawable.ic_t_bulb, size = 20.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
@@ -223,11 +236,11 @@ fun HeadsUp(text: String, tilt: Float) {
 @Composable
 fun RoutineMagnet(tasks: List<Task>) {
     Magnet(Tone.Sand, 0.6f, Modifier.fillMaxWidth()) {
-        Text("Daily routine", style = MaterialTheme.typography.titleSmall)
+        MagnetTitle(R.drawable.ic_t_list_check, "Daily routine")
         tasks.forEach { t ->
             val k = kindDuo(t.kind)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(k.fg))
+                TIcon(kindIcon(t.kind), size = 16.dp, tint = k.fg)
                 Spacer(Modifier.width(10.dp))
                 Text(t.time, Modifier.width(50.dp), style = MaterialTheme.typography.labelLarge)
                 Text(t.title, style = MaterialTheme.typography.bodyMedium, color = LocalTextColor())

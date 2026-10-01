@@ -144,7 +144,7 @@ private fun OptionButton(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SelectCard(title: String, selected: Boolean, onClick: () -> Unit) {
+private fun SelectCard(title: String, icon: Int, selected: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(20.dp)
     Surface(
@@ -155,6 +155,8 @@ private fun SelectCard(title: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            TIcon(icon, size = 28.dp)
+            Spacer(Modifier.width(14.dp))
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (selected) Icon(Icons.Filled.Check, contentDescription = "Selected")
         }
@@ -162,7 +164,7 @@ private fun SelectCard(title: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
+private fun ChoiceCard(title: String, body: String, icon: Int, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(20.dp)
     Surface(
@@ -171,9 +173,13 @@ private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            TIcon(icon, size = 30.dp, tint = c.primary)
+            Spacer(Modifier.width(16.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(body, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+            }
         }
     }
 }
@@ -275,8 +281,8 @@ private fun PickStep(onPick: (String) -> Unit) {
             Muted("Dusk builds a routine around your day and reminds you at the right moments. Every craving you ride out sets a gull free.")
             Spacer(Modifier.height(4.dp))
             Text("What are you quitting? Pick one or both.", style = MaterialTheme.typography.titleMedium)
-            SelectCard("Cigarettes", cig) { cig = !cig; error = null }
-            SelectCard("Cannabis", can) { can = !can; error = null }
+            SelectCard("Cigarettes", R.drawable.ic_t_smoking, cig) { cig = !cig; error = null }
+            SelectCard("Cannabis", R.drawable.ic_t_cannabis, can) { can = !can; error = null }
             error?.let { Text(it, color = c.error) }
             Button(
                 onClick = {
@@ -305,8 +311,8 @@ private fun ModeStep(onTalk: () -> Unit, onTap: () -> Unit) {
         Heading("How do you want to set up?")
         Muted("Both end with the same plan. If typing feels like too much right now, just talk.")
         Spacer(Modifier.height(4.dp))
-        ChoiceCard("Talk it through", "Say it out loud. Dusk listens and talks back.", onTalk)
-        ChoiceCard("Tap through questions", "$count quick questions, mostly one tap each.", onTap)
+        ChoiceCard("Talk it through", "Say it out loud. Dusk listens and talks back.", R.drawable.ic_t_microphone, onTalk)
+        ChoiceCard("Tap through questions", "$count quick questions, mostly one tap each.", R.drawable.ic_t_hand_finger, onTap)
     }
 }
 
