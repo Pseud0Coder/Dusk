@@ -32,6 +32,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -44,35 +46,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-
-// ---------- Theme ----------
-
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF2F5D7C), onPrimary = Color.White,
-    primaryContainer = Color(0xFFD6E4EE), onPrimaryContainer = Color(0xFF14324A),
-    secondary = Color(0xFFE0A040), onSecondary = Color(0xFF2A1A00),
-    secondaryContainer = Color(0xFFD6E4EE),
-    background = Color(0xFFF3F5F7), onBackground = Color(0xFF1C2630),
-    surface = Color(0xFFF3F5F7), onSurface = Color(0xFF1C2630),
-    surfaceVariant = Color(0xFFE3E8ED), onSurfaceVariant = Color(0xFF55636F),
-    outline = Color(0xFFB7C2CB),
-)
-
-private val DarkColors = darkColorScheme(
-    primary = Color(0xFF9CC2DE), onPrimary = Color(0xFF0F2A3D),
-    primaryContainer = Color(0xFF24445C), onPrimaryContainer = Color(0xFFD6E4EE),
-    secondary = Color(0xFFE2AE5C), onSecondary = Color(0xFF2A1A00),
-    secondaryContainer = Color(0xFF24445C),
-    background = Color(0xFF151C22), onBackground = Color(0xFFE4EAEF),
-    surface = Color(0xFF151C22), onSurface = Color(0xFFE4EAEF),
-    surfaceVariant = Color(0xFF222C35), onSurfaceVariant = Color(0xFFA3B1BC),
-    outline = Color(0xFF3A4752),
-)
-
-@Composable
-fun DuskTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors, content = content)
-}
 
 // ---------- Activity ----------
 
@@ -124,7 +97,7 @@ fun App() {
     }
 
     if (Store.flow.isEmpty() || !Store.onboarded) {
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
             Onboarding(onDone = { screen = Screen.Today })
         }
         return
@@ -132,7 +105,7 @@ fun App() {
 
     val opening = voiceOpening
     if (opening != null) {
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
             VoiceScreen(
                 opening = opening,
                 onRoutine = { voiceOpening = null; screen = Screen.Coach },
@@ -144,9 +117,9 @@ fun App() {
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+            NavigationBar(containerColor = cardColor(), tonalElevation = 0.dp) {
                 Screen.entries.forEach { s ->
                     NavigationBarItem(
                         selected = screen == s,
@@ -211,6 +184,9 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
     val prep = Store.startDay > Store.today()
     val daysUntil = (Store.startDay - Store.today()).toInt()
     var tip by rememberSaveable { mutableStateOf(0) }
+    var dismissedMilestone by rememberSaveable { mutableStateOf(-1) }
+    val milestoneDay = Store.dayNumber()
+    val milestone = if (!prep && Store.startDay >= 0 && dismissedMilestone != milestoneDay) milestoneText(milestoneDay) else null
 
     LazyColumn(
         Modifier.fillMaxSize().statusBarsPadding(),
@@ -230,11 +206,14 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
                 }
             }
         }
+        if (milestone != null) {
+            item { TipCard(milestone, last = true) { dismissedMilestone = milestoneDay } }
+        }
         item {
             Column {
                 when {
                     Store.startDay < 0 -> {
-                        Text("Pick your day one.", fontFamily = FontFamily.Serif, fontSize = 34.sp, lineHeight = 40.sp, color = c.onBackground)
+                        Text("Pick your day one.", fontFamily = Fraunces, fontSize = 34.sp, lineHeight = 40.sp, color = c.onBackground)
                         Spacer(Modifier.height(8.dp))
                         Text("The counter starts when you do.", color = c.onSurfaceVariant)
                         Spacer(Modifier.height(16.dp))
@@ -244,7 +223,7 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
                         Text("${flowName(Store.flow)}, day 1 starts", color = c.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
                         Text(
                             if (daysUntil == 1) "Tomorrow" else "In $daysUntil days",
-                            fontFamily = FontFamily.Serif, fontSize = 56.sp, lineHeight = 64.sp,
+                            fontFamily = Fraunces, fontSize = 56.sp, lineHeight = 64.sp,
                             fontWeight = FontWeight.Light, color = c.primary
                         )
                         Text(
@@ -265,16 +244,18 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
                         Text("${flowName(Store.flow)}, day", color = c.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
                         Text(
                             "${Store.dayNumber()}",
-                            fontFamily = FontFamily.Serif, fontSize = 120.sp, lineHeight = 120.sp,
+                            fontFamily = Fraunces, fontSize = 120.sp, lineHeight = 120.sp,
                             fontWeight = FontWeight.Light, color = c.primary
                         )
                         Text(phaseFor(Store.flow, Store.dayNumber()), color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(14.dp))
+                        MilestoneRow(Store.dayNumber())
                     }
                 }
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = onCraving,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    modifier = Modifier.fillMaxWidth().height(58.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
                 ) { Text("I'm craving right now", fontWeight = FontWeight.SemiBold) }
                 TextButton(onClick = onTalk, modifier = Modifier.fillMaxWidth()) { Text("Rather talk it through? Use voice") }
@@ -297,7 +278,6 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
         } else {
             items(Store.tasks, key = { it.id }) { t ->
                 TaskRow(t, t.id in Store.done) { Store.toggleDone(t.id) }
-                HorizontalDivider(color = c.outline.copy(alpha = 0.4f))
             }
         }
     }
@@ -306,23 +286,63 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Un
 @Composable
 fun TaskRow(t: Task, done: Boolean, onToggle: () -> Unit) {
     val c = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+    val shape = RoundedCornerShape(20.dp)
+    Surface(
+        color = cardColor(), shape = shape,
+        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onToggle)
     ) {
-        Text(t.time, Modifier.width(60.dp), color = c.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
-        Column(Modifier.weight(1f)) {
-            Text(
-                t.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (done) c.onSurfaceVariant else c.onBackground,
-                textDecoration = if (done) TextDecoration.LineThrough else null
-            )
-            if (t.note.isNotBlank()) {
-                Text(t.note, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(t.time, Modifier.width(54.dp), color = c.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    t.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = if (done) c.onSurfaceVariant else c.onSurface,
+                    textDecoration = if (done) TextDecoration.LineThrough else null
+                )
+                if (t.note.isNotBlank()) {
+                    Text(t.note, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                }
+                if (t.kind.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    KindChip(t.kind)
+                }
             }
+            Checkbox(
+                checked = done,
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(checkedColor = c.tertiary)
+            )
         }
-        Checkbox(checked = done, onCheckedChange = { onToggle() })
+    }
+}
+
+private val MILESTONES = listOf(3, 7, 14, 30)
+
+private fun milestoneText(day: Int): String? = when (day) {
+    3 -> "Three days. That's real momentum. Time for the reward you planned."
+    7 -> "One full week. The first week is the hardest, and you did it."
+    14 -> "Two weeks. For most people, the worst of withdrawal is behind them now."
+    30 -> "Thirty days. A whole month clear."
+    else -> null
+}
+
+@Composable
+fun MilestoneRow(day: Int) {
+    val c = MaterialTheme.colorScheme
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        MILESTONES.forEach { m ->
+            val reached = day >= m
+            Text(
+                "Day $m",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (reached) c.onPrimary else c.onSurfaceVariant,
+                modifier = Modifier
+                    .background(if (reached) c.primary else cardColor(), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
     }
 }
 
@@ -418,7 +438,7 @@ fun RoutineCard(tasks: List<Task>, onUse: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, c.primary),
-        color = c.background,
+        color = cardColor(),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -446,10 +466,10 @@ fun SettingsScreen() {
     var confirmClear by remember { mutableStateOf(false) }
 
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).clip(RoundedCornerShape(28.dp)).background(cardColor()).verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("Settings", fontFamily = FontFamily.Serif, fontSize = 34.sp, color = c.onBackground)
+        Text("Settings", fontFamily = Fraunces, fontSize = 34.sp, color = c.onBackground)
 
         OutlinedTextField(
             value = key, onValueChange = { key = it },
@@ -495,6 +515,14 @@ fun SettingsScreen() {
         )
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Reduce motion", style = MaterialTheme.typography.titleMedium, color = c.onSurface)
+                Text("Keeps the voice circle still.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+            }
+            Switch(checked = Store.reduceMotion, onCheckedChange = { Store.updateReduceMotion(it) })
+        }
 
         OutlinedButton(onClick = {
             Reminders.show(ctx, 9_999, "Dusk", "Reminders are working.", withDone = false)

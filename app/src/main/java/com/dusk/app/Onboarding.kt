@@ -139,7 +139,7 @@ private fun Frame(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 private fun Heading(text: String, size: Int = 32) {
     Text(
-        text, fontFamily = FontFamily.Serif, fontSize = size.sp, lineHeight = (size + 6).sp,
+        text, fontFamily = Fraunces, fontSize = size.sp, lineHeight = (size + 6).sp,
         color = MaterialTheme.colorScheme.onBackground
     )
 }
@@ -240,7 +240,7 @@ private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
     Surface(
         shape = shape,
         border = BorderStroke(1.dp, c.primary),
-        color = c.background,
+        color = cardColor(),
         modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -447,7 +447,7 @@ private fun PlanStep(
         Surface(
             shape = RoundedCornerShape(12.dp),
             border = BorderStroke(1.dp, c.primary),
-            color = c.background,
+            color = cardColor(),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -459,6 +459,10 @@ private fun PlanStep(
                             Text(t.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             if (t.note.isNotBlank()) {
                                 Text(t.note, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                            }
+                            if (t.kind.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                KindChip(t.kind)
                             }
                         }
                     }

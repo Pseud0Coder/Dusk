@@ -11,7 +11,9 @@ import org.json.JSONObject
 import java.time.LocalDate
 
 data class Msg(val role: String, val content: String)
-data class Task(val id: Int, val time: String, val title: String, val note: String = "")
+data class Task(val id: Int, val time: String, val title: String, val note: String = "", val kind: String = "")
+
+val KINDS = setOf("body", "mind", "food", "sleep", "social")
 
 const val DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 const val FLOW_CIGARETTE = "cigarette"
@@ -38,7 +40,8 @@ fun parseTasks(json: String): List<Task> {
         val title = if (o.isNull("title")) "" else o.optString("title").trim()
         if (title.isEmpty()) continue
         val note = if (o.isNull("note")) "" else o.optString("note").trim()
-        out.add(Task(0, "%02d:%02d".format(h, min), title, note))
+        val kind = if (o.isNull("kind")) "" else o.optString("kind").trim().lowercase()
+        out.add(Task(0, "%02d:%02d".format(h, min), title, note, if (kind in KINDS) kind else ""))
     }
     return out.sortedBy { it.time }.mapIndexed { i, t -> t.copy(id = i + 1) }
 }
@@ -61,6 +64,7 @@ object Store {
     private var doneDay = -1L
     var onboarded by mutableStateOf(false)
     var tipsSeen by mutableStateOf(false)
+    var reduceMotion by mutableStateOf(false)
     val intake = mutableStateListOf<Pair<String, String>>()
 
     private fun k(name: String) = "${name}_$flow"
@@ -72,6 +76,7 @@ object Store {
         model = prefs.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL
         flow = prefs.getString("flow", "") ?: ""
         tipsSeen = prefs.getBoolean("tips_seen", false)
+        reduceMotion = prefs.getBoolean("reduce_motion", false)
         loadFlow()
         loaded = true
     }
@@ -143,7 +148,7 @@ object Store {
         tasks.clear()
         tasks.addAll(list.sortedBy { it.time })
         val a = JSONArray()
-        tasks.forEach { a.put(JSONObject().put("time", it.time).put("title", it.title).put("note", it.note)) }
+        tasks.forEach { a.put(JSONObject().put("time", it.time).put("title", it.title).put("note", it.note).put("kind", it.kind)) }
         prefs.edit().putString(k("tasks"), a.toString()).apply()
         done.clear(); saveDone()
     }
@@ -204,6 +209,11 @@ object Store {
     fun chooseStartDay(day: Long) {
         startDay = day
         prefs.edit().putLong(k("start"), day).apply()
+    }
+
+    fun updateReduceMotion(on: Boolean) {
+        reduceMotion = on
+        prefs.edit().putBoolean("reduce_motion", on).apply()
     }
 
     fun setTipsSeen() {

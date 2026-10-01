@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -415,7 +416,7 @@ fun VoiceScreen(
         label = "breatheScale"
     )
     val listenScale by animateFloatAsState(1f + level * 0.2f, label = "listenScale")
-    val scale = when (state) {
+    val scale = if (Store.reduceMotion) 1f else when (state) {
         VoiceState.Listening -> listenScale
         VoiceState.Thinking -> 0.95f
         else -> breathe
@@ -434,7 +435,7 @@ fun VoiceScreen(
         when {
             !recognizerOk -> {
                 Spacer(Modifier.weight(1f))
-                Text("Voice isn't available", fontFamily = FontFamily.Serif, fontSize = 28.sp, color = c.onBackground)
+                Text("Voice isn't available", fontFamily = Fraunces, fontSize = 28.sp, color = c.onBackground)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "This phone doesn't have a speech recognition service. You can still type.",
@@ -444,7 +445,7 @@ fun VoiceScreen(
             }
             !micOk -> {
                 Spacer(Modifier.weight(1f))
-                Text("Talk it through", fontFamily = FontFamily.Serif, fontSize = 32.sp, color = c.onBackground)
+                Text("Talk it through", fontFamily = Fraunces, fontSize = 32.sp, color = c.onBackground)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     if (micDenied) "The microphone is off for Dusk. You can turn it on in your phone's app settings, or type instead."
@@ -469,7 +470,7 @@ fun VoiceScreen(
                         .size(220.dp)
                         .graphicsLayer { scaleX = scale; scaleY = scale }
                         .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(c.primaryContainer, c.primary)))
+                        .background(Brush.radialGradient(OrbColors))
                         .clickable(onClickLabel = "Talk") { tapOrb() }
                 )
                 Spacer(Modifier.weight(1f))
