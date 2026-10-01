@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
@@ -167,8 +168,8 @@ fun Onboarding(onDone: () -> Unit) {
         mutableStateOf(
             when {
                 Store.flow.isEmpty() -> "pick"
-                Store.apiKey.isBlank() -> "key"
-                else -> "intake"
+                Store.effectiveKey().isBlank() -> "key"
+                else -> "mode"
             }
         )
     }
@@ -178,9 +179,16 @@ fun Onboarding(onDone: () -> Unit) {
     when (step) {
         "pick" -> PickStep { f ->
             Store.setFlow(ctx, f)
-            step = if (Store.apiKey.isBlank()) "key" else "intake"
+            step = if (Store.effectiveKey().isBlank()) "key" else "mode"
         }
-        "key" -> KeyStep { step = "intake" }
+        "key" -> KeyStep { step = "mode" }
+        "mode" -> ModeStep(onTalk = { step = "voice" }, onTap = { step = "intake" })
+        "voice" -> VoiceScreen(
+            opening = voiceOpeningFor(Store.flow),
+            onRoutine = { step = "plan" },
+            onType = { step = "intake" },
+            onExit = { step = "mode" }
+        )
         "intake" -> IntakeStep { buildNote = null; step = "build" }
         "build" -> BuildStep(buildNote) { step = "plan" }
         "plan" -> PlanStep(
@@ -222,6 +230,35 @@ private fun PickStep(onPick: (String) -> Unit) {
             "Dusk is a coach, not a doctor. For medicines, ask a pharmacist or doctor.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun ChoiceCard(title: String, body: String, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        shape = shape,
+        border = BorderStroke(1.dp, c.primary),
+        color = c.background,
+        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onClick)
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, color = c.onBackground)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ModeStep(onTalk: () -> Unit, onTap: () -> Unit) {
+    Frame {
+        Spacer(Modifier.height(24.dp))
+        Heading("How do you want to set up?")
+        Muted("Both end with the same plan. If typing feels like too much right now, just talk.")
+        Spacer(Modifier.height(4.dp))
+        ChoiceCard("Talk it through", "Say it out loud. Dusk listens and talks back.", onTalk)
+        ChoiceCard("Tap through questions", "Seven quick questions, mostly one tap each.", onTap)
     }
 }
 

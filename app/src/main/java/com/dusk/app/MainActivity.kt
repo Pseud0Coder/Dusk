@@ -99,11 +99,12 @@ fun App() {
     var screen by rememberSaveable { mutableStateOf(Screen.Today) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var voiceOpening by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun send(text: String) {
         val t = text.trim()
         if (t.isEmpty() || busy) return
-        if (Store.apiKey.isBlank()) {
+        if (Store.effectiveKey().isBlank()) {
             screen = Screen.Setup
             Toast.makeText(ctx, "Add your OpenRouter key first.", Toast.LENGTH_SHORT).show()
             return
@@ -125,6 +126,19 @@ fun App() {
     if (Store.flow.isEmpty() || !Store.onboarded) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Onboarding(onDone = { screen = Screen.Today })
+        }
+        return
+    }
+
+    val opening = voiceOpening
+    if (opening != null) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            VoiceScreen(
+                opening = opening,
+                onRoutine = { voiceOpening = null; screen = Screen.Coach },
+                onType = { voiceOpening = null; screen = Screen.Coach },
+                onExit = { voiceOpening = null }
+            )
         }
         return
     }
@@ -151,9 +165,10 @@ fun App() {
             when (screen) {
                 Screen.Today -> TodayScreen(
                     onCraving = { screen = Screen.Coach; send("I'm having a craving right now.") },
-                    onOpenCoach = { screen = Screen.Coach }
+                    onOpenCoach = { screen = Screen.Coach },
+                    onTalk = { voiceOpening = CRAVING_OPENING }
                 )
-                Screen.Coach -> CoachScreen(busy, error) { send(it) }
+                Screen.Coach -> CoachScreen(busy, error, onVoice = { voiceOpening = CHAT_OPENING }) { send(it) }
                 Screen.Setup -> SettingsScreen()
             }
         }
@@ -190,7 +205,7 @@ fun TipCard(text: String, last: Boolean, onNext: () -> Unit) {
 }
 
 @Composable
-fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit) {
+fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit, onTalk: () -> Unit) {
     LaunchedEffect(Unit) { Store.refreshDay() }
     val c = MaterialTheme.colorScheme
     val prep = Store.startDay > Store.today()
@@ -262,6 +277,7 @@ fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
                 ) { Text("I'm craving right now", fontWeight = FontWeight.SemiBold) }
+                TextButton(onClick = onTalk, modifier = Modifier.fillMaxWidth()) { Text("Rather talk it through? Use voice") }
                 Spacer(Modifier.height(24.dp))
                 if (Store.tasks.isNotEmpty()) {
                     Text(
@@ -313,7 +329,7 @@ fun TaskRow(t: Task, done: Boolean, onToggle: () -> Unit) {
 // ---------- Coach ----------
 
 @Composable
-fun CoachScreen(busy: Boolean, error: String?, onSend: (String) -> Unit) {
+fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onSend: (String) -> Unit) {
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
     var input by rememberSaveable { mutableStateOf("") }
@@ -360,6 +376,7 @@ fun CoachScreen(busy: Boolean, error: String?, onSend: (String) -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
+            TextButton(onClick = onVoice, modifier = Modifier.padding(bottom = 4.dp)) { Text("Talk") }
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
@@ -436,7 +453,7 @@ fun SettingsScreen() {
 
         OutlinedTextField(
             value = key, onValueChange = { key = it },
-            label = { Text("OpenRouter API key") },
+            label = { Text("Your own OpenRouter key (optional)") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
@@ -447,7 +464,11 @@ fun SettingsScreen() {
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-        Text("Your key is stored only on this phone.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+        Text(
+            if (BuildConfig.OPENROUTER_KEY.isNotBlank()) "Leave this empty to use the key built into the app. Voice: ${CloudTts.engineName()}."
+            else "No key is built into this version, so add yours here. Voice: ${CloudTts.engineName()}.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
         Button(onClick = {
             Store.apiKey = key.trim()
             Store.model = model.trim().ifBlank { DEFAULT_MODEL }

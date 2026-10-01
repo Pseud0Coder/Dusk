@@ -117,6 +117,9 @@ object Store {
         Reminders.rescheduleAll(ctx)
     }
 
+    /** The person's own key if they set one in Settings, otherwise the key built into the app. */
+    fun effectiveKey(): String = apiKey.trim().ifEmpty { BuildConfig.OPENROUTER_KEY }
+
     fun today(): Long = LocalDate.now().toEpochDay()
     fun dayNumber(): Int = if (startDay < 0) 0 else (today() - startDay + 1).toInt()
 

@@ -107,3 +107,23 @@ fun phaseFor(flow: String, day: Int): String = if (flow == FLOW_CIGARETTE) when 
     day <= 28 -> "Most symptoms are gone. Sleep may still be catching up."
     else -> "Past four weeks. This is your clear baseline."
 }
+
+const val VOICE_MODE = """
+
+VOICE MODE
+You are speaking out loud through text-to-speech, and they are talking to you, maybe because typing feels like too much right now.
+- Reply in 1 to 3 short, natural spoken sentences. No lists, markdown, emoji, headings, or symbols.
+- Sound warm and unhurried. Briefly acknowledge how they feel before moving on.
+- Ask only one question at a time.
+- Speech recognition can mishear words. If something doesn't make sense, gently check what they meant.
+- Say times the way people speak them, like "half past seven". Inside the routine block, still use 24-hour HH:mm.
+- If you still need intake details, gather them through conversation: how much and how often, their usual times and triggers, and their usual wake-up time and bedtime.
+- When you have enough, say a one or two sentence summary of the plan and include the routine block. The app shows the block on screen and never reads it aloud."""
+
+fun voiceOpeningFor(flow: String): String = if (flow == FLOW_CIGARETTE)
+    "Hi, I'm Dusk. There's no rush here, and there are no wrong answers. Tell me a little about your smoking, and what made you want to stop."
+else
+    "Hi, I'm Dusk. There's no rush here, and there are no wrong answers. Tell me a little about how you use, and what made you want to stop."
+
+const val CRAVING_OPENING = "I'm here. Cravings rise and then pass, usually within minutes. Tell me what's going on right now."
+const val CHAT_OPENING = "I'm here. What's on your mind?"
