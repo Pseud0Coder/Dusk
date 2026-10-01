@@ -1,0 +1,80 @@
+package com.dusk.app
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+object Ai {
+    private val routineRx = Regex("```routine\\s*([\\s\\S]*?)```")
+
+    fun routineIn(text: String): List<Task>? =
+        routineRx.find(text)
+            ?.let { m -> runCatching { parseTasks(m.groupValues[1].trim()) }.getOrNull() }
+            ?.takeIf { it.isNotEmpty() }
+
+    fun display(text: String): String = routineRx.replace(text, "").trim()
+
+    private fun context(): String {
+        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm"))
+        val day = if (Store.startDay < 0) "Quit day not set yet." else "Today is day ${Store.dayNumber()} since the quit day."
+        val routine = if (Store.tasks.isEmpty()) "No routine saved yet." else
+            "Saved routine:\n" + Store.tasks.joinToString("\n") { t ->
+                "${t.time} ${t.title}" + (if (t.id in Store.done) " (done today)" else "")
+            }
+        return "\n\nCurrent context\nFlow: ${flowName(Store.flow)}\nNow: $now\n$day\n$routine"
+    }
+
+    /** Sends the conversation to OpenRouter and returns the assistant reply. Call from the main thread. */
+    suspend fun reply(): String {
+        val system = promptFor(Store.flow) + context()
+        val history = Store.messages.takeLast(40).toList()
+        val key = Store.apiKey
+        val model = Store.model.ifBlank { DEFAULT_MODEL }
+
+        return withContext(Dispatchers.IO) {
+            val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", system))
+            history.forEach { msgs.put(JSONObject().put("role", it.role).put("content", it.content)) }
+            val body = JSONObject().put("model", model).put("messages", msgs).toString()
+
+            val c = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection
+            try {
+                c.requestMethod = "POST"
+                c.connectTimeout = 20_000
+                c.readTimeout = 120_000
+                c.doOutput = true
+                c.setRequestProperty("Authorization", "Bearer $key")
+                c.setRequestProperty("Content-Type", "application/json")
+                c.setRequestProperty("X-Title", "Dusk")
+                c.outputStream.use { it.write(body.toByteArray()) }
+
+                val code = c.responseCode
+                val stream = if (code in 200..299) c.inputStream else c.errorStream
+                val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                if (code !in 200..299) throw Exception(errorMessage(code, text))
+
+                val message = JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message")
+                val content = if (message.isNull("content")) "" else message.getString("content").trim()
+                if (content.isEmpty()) throw Exception("The model sent an empty reply. Send your message again.")
+                content
+            } finally {
+                c.disconnect()
+            }
+        }
+    }
+
+    private fun errorMessage(code: Int, body: String): String {
+        val msg = runCatching { JSONObject(body).getJSONObject("error").getString("message") }.getOrNull()
+            ?: body.take(200)
+        return when (code) {
+            401 -> "OpenRouter rejected the API key. Check it in Settings."
+            402 -> "Your OpenRouter account is out of credits."
+            429 -> "Too many requests. Wait a moment and send again."
+            else -> "Error $code: $msg"
+        }
+    }
+}
