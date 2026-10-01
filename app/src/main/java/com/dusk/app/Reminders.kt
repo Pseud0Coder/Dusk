@@ -20,6 +20,8 @@ object Reminders {
     const val CHANNEL = "routine"
     const val ACTION_REMIND = "com.dusk.app.REMIND"
     const val ACTION_DONE = "com.dusk.app.DONE"
+    const val ACTION_PREP = "com.dusk.app.PREP"
+    const val PREP_ID = 20_000
 
     fun ensureChannel(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
@@ -34,6 +36,26 @@ object Reminders {
             Intent(ctx, ReminderReceiver::class.java).setAction(ACTION_REMIND).putExtra("id", id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+    private fun prepIntent(ctx: Context): PendingIntent =
+        PendingIntent.getBroadcast(
+            ctx, PREP_ID,
+            Intent(ctx, ReminderReceiver::class.java).setAction(ACTION_PREP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    /** One nudge at 18:00 the evening before day 1, when day 1 is still ahead. */
+    fun schedulePrep(ctx: Context) {
+        val am = ctx.getSystemService(AlarmManager::class.java)
+        val pi = prepIntent(ctx)
+        am.cancel(pi)
+        if (Store.startDay <= Store.today()) return
+        val t = LocalDate.ofEpochDay(Store.startDay - 1).atTime(18, 0)
+        if (!t.isAfter(LocalDateTime.now())) return
+        val at = t.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        if (canExact(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+    }
 
     private fun nextTrigger(time: String): Long {
         val (h, m) = time.split(":").map { it.toInt() }
@@ -63,6 +85,7 @@ object Reminders {
         Store.scheduledIds().forEach { am.cancel(alarmIntent(ctx, it)) }
         Store.tasks.forEach { schedule(ctx, it) }
         Store.setScheduledIds(Store.tasks.map { it.id })
+        schedulePrep(ctx)
     }
 
     fun show(ctx: Context, id: Int, title: String, text: String, withDone: Boolean = true) {
@@ -97,6 +120,13 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         Store.init(ctx)
+        if (intent.action == Reminders.ACTION_PREP) {
+            Reminders.show(
+                ctx, Reminders.PREP_ID, "Day 1 is tomorrow",
+                "Clear out anything you'd reach for, and tell one person your plan.", withDone = false
+            )
+            return
+        }
         val id = intent.getIntExtra("id", -1)
         val task = Store.tasks.firstOrNull { it.id == id } ?: return
         when (intent.action) {
@@ -105,7 +135,11 @@ class ReminderReceiver : BroadcastReceiver() {
                 ctx.getSystemService(NotificationManager::class.java).cancel(id)
             }
             else -> {
-                Reminders.show(ctx, id, task.title, task.note.ifBlank { "It's ${task.time}. Time for this one." })
+                // Before day 1 the routine stays quiet; it starts on the quit day.
+                val preparing = Store.startDay >= 0 && Store.today() < Store.startDay
+                if (!preparing) {
+                    Reminders.show(ctx, id, task.title, task.note.ifBlank { "It's ${task.time}. Time for this one." })
+                }
                 Reminders.schedule(ctx, task) // same time tomorrow
             }
         }

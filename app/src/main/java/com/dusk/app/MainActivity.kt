@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 // ---------- Theme ----------
 
@@ -94,16 +96,9 @@ enum class Screen(val label: String, val icon: ImageVector) {
 fun App() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var screen by rememberSaveable { mutableStateOf(if (Store.apiKey.isBlank()) Screen.Setup else Screen.Today) }
+    var screen by rememberSaveable { mutableStateOf(Screen.Today) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
 
     fun send(text: String) {
         val t = text.trim()
@@ -127,6 +122,13 @@ fun App() {
         }
     }
 
+    if (Store.flow.isEmpty() || !Store.onboarded) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Onboarding(onDone = { screen = Screen.Today })
+        }
+        return
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -147,91 +149,133 @@ fun App() {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad)) {
             when (screen) {
-                Screen.Setup -> SettingsScreen()
-                else -> if (Store.flow.isEmpty()) FlowPicker() else when (screen) {
                 Screen.Today -> TodayScreen(
                     onCraving = { screen = Screen.Coach; send("I'm having a craving right now.") },
                     onOpenCoach = { screen = Screen.Coach }
                 )
-                else -> CoachScreen(busy, error) { send(it) }
-                }
+                Screen.Coach -> CoachScreen(busy, error) { send(it) }
+                Screen.Setup -> SettingsScreen()
             }
         }
-    }
-}
-
-// ---------- Flow picker ----------
-
-@Composable
-fun FlowPicker() {
-    val ctx = LocalContext.current
-    val c = MaterialTheme.colorScheme
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(Modifier.height(24.dp))
-        Text("What are you quitting?", fontFamily = FontFamily.Serif, fontSize = 34.sp, lineHeight = 40.sp, color = c.onBackground)
-        Text("Each one gets its own coach, timeline and routine. You can switch later in Settings.", color = c.onSurfaceVariant)
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = { Store.setFlow(ctx, FLOW_CIGARETTE) },
-            modifier = Modifier.fillMaxWidth().height(64.dp)
-        ) { Text("Cigarettes", fontSize = 18.sp) }
-        OutlinedButton(
-            onClick = { Store.setFlow(ctx, FLOW_CANNABIS) },
-            modifier = Modifier.fillMaxWidth().height(64.dp)
-        ) { Text("Cannabis", fontSize = 18.sp) }
     }
 }
 
 // ---------- Today ----------
 
 
+private fun prepLines(flow: String): List<String> = if (flow == FLOW_CIGARETTE) listOf(
+    "Throw out cigarettes, lighters, and ashtrays before day 1.",
+    "If you want a stop-smoking aid, see a pharmacist or doctor this week.",
+    "Tell one person your quit day.",
+    "Decide what you'll do at each usual smoking time."
+) else listOf(
+    "Remove gear and stash before day 1.",
+    "Tell one person your quit day.",
+    "Plan something for each usual time you use.",
+    "Expect poor sleep and strange dreams for a couple of weeks. It passes."
+)
+
+@Composable
+fun TipCard(text: String, last: Boolean, onNext: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Surface(
+        color = c.primaryContainer, contentColor = c.onPrimaryContainer,
+        shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyLarge)
+            TextButton(onClick = onNext, contentPadding = PaddingValues(0.dp)) { Text(if (last) "Got it" else "Next") }
+        }
+    }
+}
+
 @Composable
 fun TodayScreen(onCraving: () -> Unit, onOpenCoach: () -> Unit) {
     LaunchedEffect(Unit) { Store.refreshDay() }
     val c = MaterialTheme.colorScheme
+    val prep = Store.startDay > Store.today()
+    val daysUntil = (Store.startDay - Store.today()).toInt()
+    var tip by rememberSaveable { mutableStateOf(0) }
 
     LazyColumn(
         Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            if (Store.startDay < 0) {
-                Text("Pick your day one.", fontFamily = FontFamily.Serif, fontSize = 34.sp, lineHeight = 40.sp, color = c.onBackground)
-                Spacer(Modifier.height(8.dp))
-                Text("The counter starts when you do.", color = c.onSurfaceVariant)
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { Store.startToday() }) { Text("Start day 1 today") }
-            } else {
-                Text("${flowName(Store.flow)}, day", color = c.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "${Store.dayNumber()}",
-                    fontFamily = FontFamily.Serif, fontSize = 120.sp, lineHeight = 120.sp,
-                    fontWeight = FontWeight.Light, color = c.primary
+        if (!Store.tipsSeen) {
+            item {
+                val tips = listOf(
+                    if (prep) "This is your countdown. The day counter starts on day 1."
+                    else "This is your day counter. It grows every day you stay clear.",
+                    "Your routine lives below. Check items off as you go, or tap Done on a reminder.",
+                    "Tap the craving button when it hits. Dusk helps you through the next few minutes."
                 )
-                Text(phaseFor(Store.flow, Store.dayNumber()), color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                TipCard(tips[tip.coerceIn(0, 2)], last = tip >= 2) {
+                    if (tip >= 2) Store.setTipsSeen() else tip += 1
+                }
             }
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onCraving,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
-            ) { Text("I'm craving right now", fontWeight = FontWeight.SemiBold) }
-            Spacer(Modifier.height(24.dp))
-            if (Store.tasks.isNotEmpty()) {
-                Text(
-                    "Today ${Store.done.count { id -> Store.tasks.any { it.id == id } }} of ${Store.tasks.size}",
-                    style = MaterialTheme.typography.titleMedium, color = c.onBackground
-                )
+        }
+        item {
+            Column {
+                when {
+                    Store.startDay < 0 -> {
+                        Text("Pick your day one.", fontFamily = FontFamily.Serif, fontSize = 34.sp, lineHeight = 40.sp, color = c.onBackground)
+                        Spacer(Modifier.height(8.dp))
+                        Text("The counter starts when you do.", color = c.onSurfaceVariant)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { Store.startToday() }) { Text("Start day 1 today") }
+                    }
+                    prep -> {
+                        Text("${flowName(Store.flow)}, day 1 starts", color = c.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (daysUntil == 1) "Tomorrow" else "In $daysUntil days",
+                            fontFamily = FontFamily.Serif, fontSize = 56.sp, lineHeight = 64.sp,
+                            fontWeight = FontWeight.Light, color = c.primary
+                        )
+                        Text(
+                            LocalDate.ofEpochDay(Store.startDay).format(DateTimeFormatter.ofPattern("EEEE d MMMM")),
+                            color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text("Before day 1", style = MaterialTheme.typography.titleMedium, color = c.onBackground)
+                        Spacer(Modifier.height(4.dp))
+                        prepLines(Store.flow).forEach {
+                            Text("\u2022  $it", color = c.onSurfaceVariant, modifier = Modifier.padding(vertical = 2.dp))
+                        }
+                        TextButton(onClick = { Store.startToday() }, contentPadding = PaddingValues(0.dp)) {
+                            Text("Start day 1 today instead")
+                        }
+                    }
+                    else -> {
+                        Text("${flowName(Store.flow)}, day", color = c.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "${Store.dayNumber()}",
+                            fontFamily = FontFamily.Serif, fontSize = 120.sp, lineHeight = 120.sp,
+                            fontWeight = FontWeight.Light, color = c.primary
+                        )
+                        Text(phaseFor(Store.flow, Store.dayNumber()), color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onCraving,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
+                ) { Text("I'm craving right now", fontWeight = FontWeight.SemiBold) }
+                Spacer(Modifier.height(24.dp))
+                if (Store.tasks.isNotEmpty()) {
+                    Text(
+                        if (prep) "Your routine, from day 1"
+                        else "Today ${Store.done.count { id -> Store.tasks.any { it.id == id } }} of ${Store.tasks.size}",
+                        style = MaterialTheme.typography.titleMedium, color = c.onBackground
+                    )
+                }
             }
         }
 
         if (Store.tasks.isEmpty()) {
             item {
-                Text("No routine yet. Your coach will ask a few questions and build one around your day.", color = c.onSurfaceVariant)
+                Text("No routine yet. Your coach will build one around your day.", color = c.onSurfaceVariant)
                 TextButton(onClick = onOpenCoach, contentPadding = PaddingValues(0.dp)) { Text("Talk to your coach") }
             }
         } else {
@@ -445,6 +489,8 @@ fun SettingsScreen() {
             Store.startToday()
             Toast.makeText(ctx, "Day 1 is now today.", Toast.LENGTH_SHORT).show()
         }, modifier = Modifier.fillMaxWidth()) { Text("Restart day 1 from today") }
+
+        OutlinedButton(onClick = { Store.redoOnboarding() }, modifier = Modifier.fillMaxWidth()) { Text("Redo setup questions") }
 
         OutlinedButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Clear chat") }
     }

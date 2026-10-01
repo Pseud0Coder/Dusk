@@ -59,6 +59,9 @@ object Store {
     val tasks = mutableStateListOf<Task>()
     val done = mutableStateListOf<Int>()
     private var doneDay = -1L
+    var onboarded by mutableStateOf(false)
+    var tipsSeen by mutableStateOf(false)
+    val intake = mutableStateListOf<Pair<String, String>>()
 
     private fun k(name: String) = "${name}_$flow"
 
@@ -68,12 +71,14 @@ object Store {
         apiKey = prefs.getString("key", "") ?: ""
         model = prefs.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL
         flow = prefs.getString("flow", "") ?: ""
+        tipsSeen = prefs.getBoolean("tips_seen", false)
         loadFlow()
         loaded = true
     }
 
     private fun loadFlow() {
-        messages.clear(); tasks.clear(); done.clear()
+        messages.clear(); tasks.clear(); done.clear(); intake.clear()
+        onboarded = false
         startDay = -1L; doneDay = -1L
         if (flow.isEmpty()) return
 
@@ -88,6 +93,18 @@ object Store {
         if (doneDay == today()) {
             val da = JSONArray(prefs.getString(k("done"), "[]"))
             for (i in 0 until da.length()) done.add(da.getInt(i))
+        }
+        val ia = JSONArray(prefs.getString(k("intake"), "[]"))
+        for (i in 0 until ia.length()) {
+            val o = ia.getJSONArray(i)
+            intake.add(o.getString(0) to o.getString(1))
+        }
+        onboarded = prefs.getBoolean(k("onboarded"), false)
+        // People who set the app up before onboarding existed skip it.
+        if (!onboarded && !prefs.contains(k("onboarded")) && (tasks.isNotEmpty() || messages.isNotEmpty())) {
+            onboarded = true
+            tipsSeen = true
+            prefs.edit().putBoolean(k("onboarded"), true).putBoolean("tips_seen", true).apply()
         }
     }
 
@@ -153,6 +170,42 @@ object Store {
     fun startToday() {
         startDay = today()
         prefs.edit().putLong(k("start"), startDay).apply()
+    }
+
+    fun setIntake(label: String, value: String) {
+        val i = intake.indexOfFirst { it.first == label }
+        if (value.isBlank()) {
+            if (i >= 0) { intake.removeAt(i) }
+        } else if (i >= 0) {
+            intake[i] = label to value
+        } else {
+            intake.add(label to value)
+        }
+        val a = JSONArray()
+        intake.forEach { a.put(JSONArray().put(it.first).put(it.second)) }
+        prefs.edit().putString(k("intake"), a.toString()).apply()
+    }
+
+    fun profileText(): String = intake.joinToString("\n") { "- ${it.first}: ${it.second}" }
+
+    fun markOnboarded() {
+        onboarded = true
+        prefs.edit().putBoolean(k("onboarded"), true).apply()
+    }
+
+    fun redoOnboarding() {
+        onboarded = false
+        prefs.edit().putBoolean(k("onboarded"), false).apply()
+    }
+
+    fun setStartDay(day: Long) {
+        startDay = day
+        prefs.edit().putLong(k("start"), day).apply()
+    }
+
+    fun setTipsSeen() {
+        tipsSeen = true
+        prefs.edit().putBoolean("tips_seen", true).apply()
     }
 
     fun scheduledIds(): List<Int> =

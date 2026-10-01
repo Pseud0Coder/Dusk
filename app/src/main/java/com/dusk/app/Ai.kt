@@ -21,12 +21,19 @@ object Ai {
 
     private fun context(): String {
         val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm"))
-        val day = if (Store.startDay < 0) "Quit day not set yet." else "Today is day ${Store.dayNumber()} since the quit day."
+        val until = Store.startDay - Store.today()
+        val day = when {
+            Store.startDay < 0 -> "Quit day not set yet."
+            until > 0 -> "The quit day is in $until day(s). The person is still preparing."
+            else -> "Today is day ${Store.dayNumber()} since the quit day."
+        }
+        val profile = if (Store.intake.isEmpty()) "" else
+            "\nIntake answers (already collected in the app):\n" + Store.profileText()
         val routine = if (Store.tasks.isEmpty()) "No routine saved yet." else
             "Saved routine:\n" + Store.tasks.joinToString("\n") { t ->
                 "${t.time} ${t.title}" + (if (t.id in Store.done) " (done today)" else "")
             }
-        return "\n\nCurrent context\nFlow: ${flowName(Store.flow)}\nNow: $now\n$day\n$routine"
+        return "\n\nCurrent context\nFlow: ${flowName(Store.flow)}\nNow: $now\n$day$profile\n$routine"
     }
 
     /** Sends the conversation to OpenRouter and returns the assistant reply. Call from the main thread. */
@@ -64,6 +71,24 @@ object Ai {
             } finally {
                 c.disconnect()
             }
+        }
+    }
+
+    /** Returns null if the key works, otherwise a message to show the person. */
+    suspend fun checkKey(key: String): String? = withContext(Dispatchers.IO) {
+        val c = URL("https://openrouter.ai/api/v1/auth/key").openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = 15_000
+            c.readTimeout = 15_000
+            c.setRequestProperty("Authorization", "Bearer ${key.trim()}")
+            val code = c.responseCode
+            if (code in 200..299) null
+            else if (code == 401 || code == 403) "OpenRouter rejected that key. Check it and try again."
+            else "OpenRouter returned error $code. Try again in a moment."
+        } catch (e: Exception) {
+            "Couldn't reach OpenRouter. Check your connection and try again."
+        } finally {
+            c.disconnect()
         }
     }
 
