@@ -11,6 +11,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +111,7 @@ fun PersonaCard(
     p: Persona,
     selected: Boolean,
     previewing: Boolean,
+    previewLabel: String,
     onSelect: () -> Unit,
     onPreview: () -> Unit,
     modifier: Modifier = Modifier
@@ -125,15 +135,14 @@ fun PersonaCard(
                 }
             }
             Text(p.vibe, style = MaterialTheme.typography.bodySmall)
-            if (p.voiceReady()) {
-                TextButton(onClick = onPreview, contentPadding = PaddingValues(0.dp)) {
-                    TIcon(R.drawable.ic_t_sparkles, size = 16.dp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (previewing) "Speaking…" else "Hear ${p.name}")
-                }
-            } else {
+            TextButton(onClick = onPreview, contentPadding = PaddingValues(0.dp)) {
+                TIcon(R.drawable.ic_t_sparkles, size = 16.dp)
+                Spacer(Modifier.width(6.dp))
+                Text(if (previewing) previewLabel else "Hear ${p.name}")
+            }
+            if (!p.voiceReady()) {
                 Text(
-                    "Voice needs a ${p.provider.label} key",
+                    "Phone voice until a ${p.provider.label} key is added",
                     style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant
                 )
             }
@@ -143,13 +152,13 @@ fun PersonaCard(
 
 /** Two-column grid of personas. Tap to choose, tap "Hear" to listen first. */
 @Composable
-fun PersonaGrid(previewingId: String?, onPreview: (Persona) -> Unit) {
+fun PersonaGrid(previewingId: String?, previewLabel: String, onPreview: (Persona) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PERSONAS.chunked(2).forEach { pair ->
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 pair.forEach { p ->
                     PersonaCard(
-                        p, selected = Store.persona == p.id, previewing = previewingId == p.id,
+                        p, selected = Store.persona == p.id, previewing = previewingId == p.id, previewLabel = previewLabel,
                         onSelect = { Store.updatePersona(p.id) },
                         onPreview = { onPreview(p) },
                         modifier = Modifier.weight(1f).fillMaxHeight()
@@ -161,4 +170,90 @@ fun PersonaGrid(previewingId: String?, onPreview: (Persona) -> Unit) {
     }
 }
 
-fun previewLine(p: Persona): String = "Hi, I'm ${p.name}. Whenever a craving hits, or you just need to talk, I'm here."
+/** What each part of the spoken introduction covers, in order. Every claim matches what the app does. */
+val INTRO_TOPICS = listOf(
+    "what Dusk is: a quit coach that learns how their day works and builds a routine around it, with no judgment",
+    "the daily routine: small swaps placed right before their usual triggers, with gentle reminders that have a Done button",
+    "cravings: they come in waves that usually pass within minutes; they tap the craving button and ride it out together, and every craving that passes sets a gull free in their sky",
+    "progress: every clear day becomes a sunset they keep, and their island grows a palm, a hut, a boat, and a lighthouse at days 3, 7, 14, and 30",
+    "slips: a slip restarts the day count but never takes away their sunsets, gulls, or island, and the coach helps them work out what happened",
+    "talking: they can type, or just talk out loud any time, especially when typing feels like too much",
+    "care: Dusk is a coach, not a doctor, and will point them to a pharmacist or doctor for medicines or if things get hard",
+    "an invitation to pick the coach whose voice feels right to them, and begin",
+)
+
+val INTRO_FALLBACKS = listOf(
+    "Dusk learns how your day works and builds a routine around it. No judgment, ever.",
+    "Your routine puts small swaps right before your usual triggers, with gentle reminders along the way.",
+    "Cravings come in waves and usually pass within minutes. Ride one out with us, and a gull goes free in your sky.",
+    "Every clear day becomes a sunset you keep, and your island grows as you reach each milestone.",
+    "If you slip, your day count restarts, but your sunsets, gulls, and island all stay.",
+    "You can type, or just talk to me out loud whenever typing feels like too much.",
+    "I'm a coach, not a doctor. For medicines, or if things get hard, I'll point you to someone who can help.",
+    "Pick the voice that feels right to you, and let's begin.",
+)
+
+/** Session-wide progress through the introduction, shared by every preview. */
+object Intro {
+    var next by mutableStateOf(0)
+    val spoken = mutableStateListOf<String>()
+}
+
+/**
+ * The coach selector. Tapping "Hear" on a coach has DeepSeek write the next part
+ * of Dusk's introduction in that coach's personality, then speaks it in their voice.
+ */
+@Composable
+fun PersonaPicker() {
+    val ctx = LocalContext.current
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val speaker = remember { Speaker(ctx) }
+    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
+    var busyId by remember { mutableStateOf<String?>(null) }
+    var writing by remember { mutableStateOf(false) }
+    var caption by remember { mutableStateOf<Triple<Persona, Int, String>?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PersonaGrid(busyId, if (writing) "Getting ready…" else "Speaking…") { p ->
+            if (busyId == null) {
+                busyId = p.id
+                writing = true
+                scope.launch {
+                    val part = Intro.next % INTRO_TOPICS.size
+                    val line = Ai.introLine(p, part, Intro.spoken.takeLast(2))
+                    Intro.spoken.add(line)
+                    Intro.next = part + 1
+                    caption = Triple(p, part, line)
+                    writing = false
+                    speaker.speak(line, p)
+                    busyId = null
+                }
+            }
+        }
+        caption?.let { (p, part, line) ->
+            Surface(
+                color = tone(Tone.Mint).bg, contentColor = tone(Tone.Mint).fg,
+                shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                    PersonaAvatar(p, 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "${p.name} · part ${part + 1} of ${INTRO_TOPICS.size}",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Text(line, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+        if (caption == null) {
+            Text(
+                "Tap \"Hear\" on any coach. Each one you try tells you the next part of how Dusk works.",
+                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            )
+        }
+    }
+}

@@ -732,9 +732,6 @@ fun SettingsScreen() {
     var key by rememberSaveable { mutableStateOf(Store.apiKey) }
     var model by rememberSaveable { mutableStateOf(Store.model) }
     var confirmClear by remember { mutableStateOf(false) }
-    var previewing by remember { mutableStateOf<String?>(null) }
-    val speaker = remember { Speaker(ctx) }
-    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())
@@ -760,15 +757,10 @@ fun SettingsScreen() {
         // Coach persona and voice
         SectionTitle(R.drawable.ic_t_users, "Your coach")
         Text(
-            "Pick who you talk to. Their personality shapes how the coach writes and speaks, and each has a natural voice.",
+            "Pick who you talk to. Their personality shapes how the coach writes and speaks. Tap \"Hear\" and each coach tells you a part of how Dusk works.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
         )
-        PersonaGrid(previewing) { p ->
-            if (previewing == null) {
-                previewing = p.id
-                scope.launch { speaker.speak(previewLine(p), p); previewing = null }
-            }
-        }
+        PersonaPicker()
         if (PERSONAS.any { !it.voiceReady() }) {
             Text(
                 "Coaches without a voice key still chat and talk, using your phone's built-in voice.",

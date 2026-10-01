@@ -2,6 +2,7 @@ package com.dusk.app
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -44,13 +45,43 @@ object Ai {
         val voice = if (voiceOpening == null) "" else
             VOICE_MODE + "\nThis voice session opened with you saying: \"$voiceOpening\""
         val system = promptFor(Store.flow) + personaById(Store.persona).promptBlock() + voice + context()
-        val history = Store.messages.takeLast(40).toList()
+        return complete(system, Store.messages.takeLast(40).toList())
+    }
+
+    /**
+     * Writes one part of the spoken introduction to Dusk, in [p]'s personality.
+     * Falls back to a ready-made line if the model is slow or unreachable.
+     */
+    suspend fun introLine(p: Persona, part: Int, earlier: List<String>): String {
+        val topic = INTRO_TOPICS[part]
+        val system = "You write short spoken lines for the Dusk app's voice preview. You are ${p.name}, one of Dusk's coaches. " +
+            "Personality: ${p.style}\n" +
+            "Rules: 1 or 2 short sentences, at most 40 words in total. Natural spoken English, warm and calm. " +
+            "No lists, emoji, markdown, or quotation marks. Only describe what you're told Dusk does. No medical advice."
+        val quitting = if (Store.flow.isBlank()) "smoking" else flowName(Store.flow).lowercase()
+        val user = "The person is quitting $quitting. This is part ${part + 1} of ${INTRO_TOPICS.size} of a spoken introduction to Dusk. " +
+            "Different coaches take turns: each coach they tap reads the next part. " +
+            (if (part == 0) "Open with a short greeting and your name. " else "Say your name in a few words, then carry on. ") +
+            (if (earlier.isNotEmpty()) "Earlier parts said: ${earlier.joinToString(" ")} " else "") +
+            "Your part should cover: $topic. Reply with only the line to speak."
+        if (Store.effectiveKey().isBlank()) return fallbackIntro(p, part)
+        val line = withTimeoutOrNull(15_000) {
+            runCatching { complete(system, listOf(Msg("user", user))) }.getOrNull()
+        }
+        return line?.trim()?.trim('"')?.takeIf { it.isNotBlank() && it.length < 400 } ?: fallbackIntro(p, part)
+    }
+
+    private fun fallbackIntro(p: Persona, part: Int): String =
+        "I'm ${p.name}. " + INTRO_FALLBACKS[part]
+
+    /** Sends one conversation to OpenRouter and returns the reply text. */
+    private suspend fun complete(system: String, turns: List<Msg>): String {
         val key = Store.effectiveKey()
         val model = Store.model.ifBlank { DEFAULT_MODEL }
 
         return withContext(Dispatchers.IO) {
             val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", system))
-            history.forEach { msgs.put(JSONObject().put("role", it.role).put("content", it.content)) }
+            turns.forEach { msgs.put(JSONObject().put("role", it.role).put("content", it.content)) }
             val body = JSONObject().put("model", model).put("messages", msgs).toString()
 
             val c = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection

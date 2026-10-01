@@ -319,21 +319,11 @@ private fun ModeStep(onTalk: () -> Unit, onTap: () -> Unit) {
 
 @Composable
 private fun PersonaStep(onNext: () -> Unit) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val speaker = remember { Speaker(ctx) }
-    var previewing by remember { mutableStateOf<String?>(null) }
-    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
     Frame {
         Spacer(Modifier.height(16.dp))
         Heading("Who would you like to talk to?")
-        Muted("Each coach has their own personality and voice. You can switch any time in Settings.")
-        PersonaGrid(previewing) { p ->
-            if (previewing == null) {
-                previewing = p.id
-                scope.launch { speaker.speak(previewLine(p), p); previewing = null }
-            }
-        }
+        Muted("Each coach has their own personality and voice. Tap \"Hear\" on a few, and they'll walk you through Dusk together.")
+        PersonaPicker()
         Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp)) {
             TIcon(R.drawable.ic_t_microphone, size = 20.dp)
             Spacer(Modifier.width(10.dp))
