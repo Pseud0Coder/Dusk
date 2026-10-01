@@ -43,7 +43,7 @@ object Ai {
     suspend fun reply(voiceOpening: String? = null): String {
         val voice = if (voiceOpening == null) "" else
             VOICE_MODE + "\nThis voice session opened with you saying: \"$voiceOpening\""
-        val system = promptFor(Store.flow) + voice + context()
+        val system = promptFor(Store.flow) + personaById(Store.persona).promptBlock() + voice + context()
         val history = Store.messages.takeLast(40).toList()
         val key = Store.effectiveKey()
         val model = Store.model.ifBlank { DEFAULT_MODEL }

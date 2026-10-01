@@ -732,9 +732,7 @@ fun SettingsScreen() {
     var key by rememberSaveable { mutableStateOf(Store.apiKey) }
     var model by rememberSaveable { mutableStateOf(Store.model) }
     var confirmClear by remember { mutableStateOf(false) }
-    var kokoroReady by remember { mutableStateOf(Kokoro.ready(ctx)) }
-    var dlError by remember { mutableStateOf<String?>(null) }
-    var previewing by remember { mutableStateOf(false) }
+    var previewing by remember { mutableStateOf<String?>(null) }
     val speaker = remember { Speaker(ctx) }
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
 
@@ -759,81 +757,21 @@ fun SettingsScreen() {
 
         HorizontalDivider(color = c.outlineVariant)
 
-        // Voice
-        SectionTitle(R.drawable.ic_t_microphone, "Voice")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Kokoro", Store.voiceEngine == "kokoro", Modifier.weight(1f)) { Store.updateVoiceEngine("kokoro") }
-            Choice("Phone voice", Store.voiceEngine == "phone", Modifier.weight(1f)) { Store.updateVoiceEngine("phone") }
-        }
-        if (Store.voiceEngine == "kokoro") {
-            val p = Kokoro.progress
-            when {
-                kokoroReady -> {
-                    Text("Pick a voice", style = MaterialTheme.typography.labelLarge, color = c.onSurfaceVariant)
-                    Row(
-                        Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Kokoro.voices.forEach { v ->
-                            Choice(v.name, Store.kokoroVoice == v.sid) { Store.updateKokoroVoice(v.sid) }
-                        }
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            if (!previewing) {
-                                previewing = true
-                                scope.launch {
-                                    speaker.speak("Hi, I'm Dusk. I'm here whenever you need me.")
-                                    previewing = false
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TIcon(R.drawable.ic_t_sparkles, size = 18.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(if (previewing) "Speaking…" else "Hear this voice")
-                    }
-                    TextButton(onClick = { Kokoro.delete(ctx); kokoroReady = false }) {
-                        TIcon(R.drawable.ic_t_trash, size = 18.dp, tint = c.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Remove download", color = c.onSurfaceVariant)
-                    }
-                }
-                p != null -> {
-                    LinearProgressIndicator(
-                        progress = { p },
-                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                        color = c.secondary, trackColor = c.outlineVariant
-                    )
-                    Text("Downloading and unpacking, ${(p * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
-                }
-                else -> {
-                    Text(
-                        "Kokoro is a free, natural voice that runs on your phone, even offline. " +
-                            "It's a one-time ${Kokoro.SIZE_MB} MB download, best on Wi-Fi. Until then, Dusk uses the phone voice.",
-                        style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-                    )
-                    Button(
-                        onClick = {
-                            dlError = null
-                            scope.launch {
-                                dlError = Kokoro.download(ctx)
-                                kokoroReady = Kokoro.ready(ctx)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TIcon(R.drawable.ic_t_download, size = 18.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Download Kokoro")
-                    }
-                    dlError?.let { Text(it, color = c.error, style = MaterialTheme.typography.bodySmall) }
-                }
+        // Coach persona and voice
+        SectionTitle(R.drawable.ic_t_users, "Your coach")
+        Text(
+            "Pick who you talk to. Their personality shapes how the coach writes and speaks, and each has a natural voice.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+        PersonaGrid(previewing) { p ->
+            if (previewing == null) {
+                previewing = p.id
+                scope.launch { speaker.speak(previewLine(p), p); previewing = null }
             }
-        } else {
+        }
+        if (PERSONAS.any { !it.voiceReady() }) {
             Text(
-                "Using ${if (CloudTts.engineName() == "On-device") "your phone's built-in voice" else CloudTts.engineName()}.",
+                "Coaches without a voice key still chat and talk, using your phone's built-in voice.",
                 style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
             )
         }

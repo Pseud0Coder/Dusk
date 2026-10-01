@@ -134,11 +134,11 @@ You are speaking out loud through text-to-speech, and they are talking to you, m
 - When you have enough, say a one or two sentence summary of the plan and include the routine block. The app shows the block on screen and never reads it aloud."""
 
 fun voiceOpeningFor(flow: String): String = if (flow == FLOW_CIGARETTE)
-    "Hi, I'm Dusk. There's no rush here, and there are no wrong answers. Tell me a little about your smoking, and what made you want to stop."
+    "Hi, I'm ${personaById(Store.persona).name}. There's no rush here, and there are no wrong answers. Tell me a little about your smoking, and what made you want to stop."
 else if (flow == FLOW_BOTH)
-    "Hi, I'm Dusk. There's no rush here, and there are no wrong answers. Tell me a little about your smoking and your cannabis use, and what made you want to stop."
+    "Hi, I'm ${personaById(Store.persona).name}. There's no rush here, and there are no wrong answers. Tell me a little about your smoking and your cannabis use, and what made you want to stop."
 else
-    "Hi, I'm Dusk. There's no rush here, and there are no wrong answers. Tell me a little about how you use, and what made you want to stop."
+    "Hi, I'm ${personaById(Store.persona).name}. There's no rush here, and there are no wrong answers. Tell me a little about how you use, and what made you want to stop."
 
 const val CRAVING_OPENING = "I'm here. Cravings rise and then pass, usually within minutes. Tell me what's going on right now."
 const val CHAT_OPENING = "I'm here. What's on your mind?"

@@ -15,10 +15,10 @@ Add these in the repo under Settings > Secrets and variables > Actions > New rep
 | Secret | What it does |
 | --- | --- |
 | `OPENROUTER_KEY` | Powers the coach. With it set, people never see a key screen. |
-| `INWORLD_KEY` | Optional. Natural voice via Inworld TTS (Basic auth key). `INWORLD_VOICE` and `INWORLD_MODEL` are optional overrides (defaults: `Sarah`, `inworld-tts-2`). |
-| `FISH_KEY` | Optional. Natural voice via Fish Audio. `FISH_VOICE_ID` picks a voice from their library; `FISH_MODEL` defaults to `s2.1-pro`. |
+| `INWORLD_KEY` | Voices for the Inworld coaches (Kelsey, Jonah, Priya, Dennis). Basic auth key from the Inworld portal. `INWORLD_MODEL` optional (default `inworld-tts-2`). |
+| `FISH_KEY` | Voices for the Fish Audio coaches (Sarah, Adrian, Nova). `FISH_MODEL` optional (default `s2.1-pro`). |
 
-Voice options: Kokoro (free, natural, runs on the phone after a one-time 103 MB download from Settings), Inworld or Fish Audio if their keys are set, or the phone's built-in voice. The app ships for 64-bit ARM phones.
+Coaches: pick a persona in setup or Settings. Each has a personality the coach takes on and a voice from Inworld or Fish Audio. Without that provider's key, the persona still works with the phone's built-in voice.
 
 ## Voice mode
 During setup you can choose "Talk it through" instead of tapping through questions. Dusk speaks, listens, and builds the same plan from the conversation. Voice is also available from the Coach tab and under the craving button.

@@ -19,14 +19,12 @@ jobs:
         env:
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           INWORLD_KEY: ${{ secrets.INWORLD_KEY }}
-          INWORLD_VOICE: ${{ secrets.INWORLD_VOICE }}
           INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}
           FISH_KEY: ${{ secrets.FISH_KEY }}
-          FISH_VOICE_ID: ${{ secrets.FISH_VOICE_ID }}
           FISH_MODEL: ${{ secrets.FISH_MODEL }}
         run: |
           if [ -z "$OPENROUTER_KEY" ]; then echo "::warning title=Missing secret::OPENROUTER_KEY is not set, so the app will ask for a key."; fi
-          if [ -n "$INWORLD_KEY" ]; then echo "::notice title=Voice::Using Inworld TTS"; elif [ -n "$FISH_KEY" ]; then echo "::notice title=Voice::Using Fish Audio TTS"; else echo "::notice title=Voice::Using on-device TTS"; fi
+          echo "::notice title=Voice::Inworld key $([ -n "$INWORLD_KEY" ] && echo set || echo missing), Fish key $([ -n "$FISH_KEY" ] && echo set || echo missing)"
           chmod +x gradlew
           set +e
           ./gradlew assembleDebug --console=plain 2>&1 | tee build.log

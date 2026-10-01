@@ -65,20 +65,15 @@ private val mainHandler = Handler(Looper.getMainLooper())
 // ---------- Cloud TTS (optional, picked by which key is built in) ----------
 
 object CloudTts {
-    fun engineName(): String = when {
-        BuildConfig.INWORLD_KEY.isNotBlank() -> "Inworld"
-        BuildConfig.FISH_KEY.isNotBlank() -> "Fish Audio"
-        else -> "On-device"
-    }
-
-    /** Returns an audio file, or null to fall back to on-device speech. */
-    suspend fun synthesize(ctx: Context, text: String): File? = withContext(Dispatchers.IO) {
+    /** Speaks [text] in [p]'s voice. Returns an audio file, or null to fall back to the phone's voice. */
+    suspend fun synthesize(ctx: Context, text: String, p: Persona): File? = withContext(Dispatchers.IO) {
+        if (!p.voiceReady()) return@withContext null
         try {
-            when {
-                BuildConfig.INWORLD_KEY.isNotBlank() -> {
+            when (p.provider) {
+                Provider.Inworld -> {
                     val body = JSONObject()
                         .put("text", text)
-                        .put("voiceId", BuildConfig.INWORLD_VOICE)
+                        .put("voiceId", p.voiceId)
                         .put("modelId", BuildConfig.INWORLD_MODEL)
                     val res = post(
                         "https://api.inworld.ai/tts/v1/voice",
@@ -87,12 +82,12 @@ object CloudTts {
                     val b64 = JSONObject(String(res)).optString("audioContent")
                     if (b64.isBlank()) null else write(ctx, Base64.decode(b64, Base64.DEFAULT))
                 }
-                BuildConfig.FISH_KEY.isNotBlank() -> {
+                Provider.Fish -> {
                     val body = JSONObject()
                         .put("text", text)
+                        .put("reference_id", p.voiceId)
                         .put("format", "mp3")
                         .put("prosody", JSONObject().put("speed", 0.95))
-                    if (BuildConfig.FISH_VOICE_ID.isNotBlank()) body.put("reference_id", BuildConfig.FISH_VOICE_ID)
                     write(
                         ctx,
                         post(
@@ -102,7 +97,6 @@ object CloudTts {
                         )
                     )
                 }
-                else -> null
             }
         } catch (e: Exception) {
             null
@@ -158,14 +152,10 @@ class Speaker(context: Context) {
     }
 
     /** Speaks the text and returns when it's finished (or cancelled). */
-    suspend fun speak(text: String) {
+    suspend fun speak(text: String, persona: Persona = personaById(Store.persona)) {
         val clean = text.trim()
         if (clean.isEmpty()) return
-        val file = if (Store.voiceEngine == "kokoro" && Kokoro.ready(ctx)) {
-            Kokoro.synthesize(ctx, clean, Store.kokoroVoice) ?: CloudTts.synthesize(ctx, clean)
-        } else {
-            CloudTts.synthesize(ctx, clean)
-        }
+        val file = CloudTts.synthesize(ctx, clean, persona)
         if (file != null && play(file)) return
         speakLocal(clean)
     }
@@ -410,8 +400,6 @@ fun VoiceScreen(
         micDenied = !granted
     }
 
-    LaunchedEffect(Unit) { if (Store.voiceEngine == "kokoro") Kokoro.warm(ctx) }
-
     LaunchedEffect(micOk) {
         if (micOk && recognizerOk && job == null) startTurn(opening)
     }
@@ -428,9 +416,10 @@ fun VoiceScreen(
         VoiceState.Thinking -> 0.95f
         else -> breathe
     }
+    val persona = personaById(Store.persona)
     val status = when (state) {
         VoiceState.Idle -> "Tap the circle to talk"
-        VoiceState.Speaking -> "Dusk is talking. Tap to jump in."
+        VoiceState.Speaking -> "${persona.name} is talking. Tap to jump in."
         VoiceState.Listening -> "Listening. Tap when you're done."
         VoiceState.Thinking -> "Thinking…"
     }
@@ -469,7 +458,13 @@ fun VoiceScreen(
                 Spacer(Modifier.weight(1f))
             }
             else -> {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PersonaAvatar(persona, 36.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(persona.name, fontFamily = Fraunces, fontSize = 24.sp, color = c.onBackground)
+                }
+                Spacer(Modifier.height(6.dp))
                 Text(status, style = MaterialTheme.typography.titleMedium, color = c.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
                 Box(contentAlignment = Alignment.Center) {
