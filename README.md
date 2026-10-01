@@ -5,8 +5,9 @@ A minimal Android quit coach. An AI coach (DeepSeek V4.1 Flash via OpenRouter) g
 Two flows, each with its own coach, timeline, routine and day count. You pick one when you first open the app and can switch in Settings.
 
 ## Get the APK
-1. Open the repo's **Actions** tab and the latest "Build APK" run.
-2. Download **Dusk-apk**, unzip it, and install `app-debug.apk` (allow "install unknown apps" when asked).
+Download the latest build: https://github.com/Pseud0Coder/Dusk/releases/latest/download/Dusk.apk
+
+Open it on your phone and allow "install unknown apps" when asked.
 
 ## First run
 1. Settings: paste your OpenRouter key (openrouter.ai/keys) and tap Save. The model defaults to `deepseek/deepseek-v4.1-flash`.
