@@ -192,7 +192,7 @@ fun Onboarding(onDone: () -> Unit) {
             },
             onApprove = { tasks ->
                 Store.setTasks(tasks)
-                Store.setStartDay(LocalDate.now().toEpochDay() + offset)
+                Store.chooseStartDay(LocalDate.now().toEpochDay() + offset)
                 step = "perms"
             }
         )

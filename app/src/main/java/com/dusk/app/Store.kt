@@ -198,7 +198,7 @@ object Store {
         prefs.edit().putBoolean(k("onboarded"), false).apply()
     }
 
-    fun setStartDay(day: Long) {
+    fun chooseStartDay(day: Long) {
         startDay = day
         prefs.edit().putLong(k("start"), day).apply()
     }
