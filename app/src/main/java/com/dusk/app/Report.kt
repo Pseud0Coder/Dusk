@@ -108,8 +108,15 @@ private fun valueAt(curve: List<Pair<Float, Float>>, day: Float): Float {
     return curve.last().second
 }
 
+/** Typical withdrawal intensity (0..1) this many days after quitting. */
+fun withdrawalLevel(sub: String, daysSinceQuit: Float): Float =
+    valueAt(if (sub == FLOW_CIGARETTE) CIG_CURVE else CAN_CURVE, daysSinceQuit.coerceIn(0f, 28f))
+
+/**
+ * The withdrawal tide. With [here] on, a dot marks where each substance is right now.
+ */
 @Composable
-fun TideChart(subs: List<String>, day1: LocalDate) {
+fun TideChart(subs: List<String>, day1: LocalDate, here: Boolean = false, nowMs: Long = System.currentTimeMillis()) {
     val c = MaterialTheme.colorScheme
     Magnet(Tone.Sand, -0.8f, Modifier.fillMaxWidth()) {
         MagnetTitle(R.drawable.ic_t_wave_sine, "Withdrawal tide")
@@ -128,6 +135,16 @@ fun TideChart(subs: List<String>, day1: LocalDate) {
                     if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 drawPath(path, color, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                if (here) {
+                    val st = Store.startMs(s)
+                    if (st in 1..nowMs) {
+                        val day = ((nowMs - st) / 86_400_000f).coerceIn(0f, 28f)
+                        val x = w * xOf(day)
+                        val y = h - 6.dp.toPx() - valueAt(curve, day) * (h - 14.dp.toPx())
+                        drawCircle(color.copy(alpha = 0.25f), 11.dp.toPx(), Offset(x, y))
+                        drawCircle(color, 6.dp.toPx(), Offset(x, y))
+                    }
+                }
             }
             drawLine(
                 c.outline, Offset(0f, h - 2.dp.toPx()), Offset(w, h - 2.dp.toPx()),

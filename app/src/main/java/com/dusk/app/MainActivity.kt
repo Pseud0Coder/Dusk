@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
 
 enum class Screen(val label: String, val icon: Int) {
     Today("Today", R.drawable.ic_t_sunset_2),
+    Progress("Progress", R.drawable.ic_t_chart_bar),
     Coach("Coach", R.drawable.ic_t_message_circle),
     Setup("Settings", R.drawable.ic_t_adjustments_horizontal),
 }
@@ -176,12 +177,12 @@ fun App() {
             when (screen) {
                 Screen.Today -> TodayScreen(
                     onCraving = { sub ->
-                        Store.cravingFor = sub
+                        Store.startCraving(sub)
                         screen = Screen.Coach
                         send("I'm having a ${cravingWord(sub)} craving right now.")
                     },
                     onTalk = {
-                        Store.cravingFor = if (Store.flow == FLOW_BOTH) "" else Store.flow
+                        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
                         voiceOpening = CRAVING_OPENING
                     },
                     onOpenCoach = { screen = Screen.Coach },
@@ -192,7 +193,15 @@ fun App() {
                         send("I slipped with ${flowName(sub).lowercase()} today.")
                     }
                 )
-                Screen.Coach -> CoachScreen(busy, error, onVoice = { voiceOpening = CHAT_OPENING }) { send(it) }
+                Screen.Coach -> CoachScreen(
+                    busy, error,
+                    onVoice = { voiceOpening = CHAT_OPENING },
+                    onGaveIn = { sub ->
+                        Store.recordSlip(sub)
+                        send("I gave in to a ${cravingWord(sub)} craving.")
+                    }
+                ) { send(it) }
+                Screen.Progress -> ProgressScreen()
                 Screen.Setup -> SettingsScreen()
             }
         }
@@ -225,7 +234,7 @@ fun App() {
                     OutlinedButton(onClick = {
                         quickCheckin = false
                         Store.logCheckin("Craving")
-                        Store.cravingFor = if (Store.flow == FLOW_BOTH) "" else Store.flow
+                        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
                         screen = Screen.Coach
                         send("I'm having a craving right now.")
                     }, modifier = Modifier.fillMaxWidth()) {
@@ -361,7 +370,7 @@ fun StatTile(icon: Int, value: String, label: String, modifier: Modifier = Modif
 
 /** Shown while a craving session is open. "It passed" sets a gull free. */
 @Composable
-fun CravingBanner(onTalk: () -> Unit) {
+fun CravingBanner(onTalk: () -> Unit, onGaveIn: (String) -> Unit) {
     val sub = Store.cravingFor ?: return
     val d = tone(Tone.Coral)
     val subs = if (sub.isBlank()) Store.substances() else listOf(sub)
@@ -382,9 +391,19 @@ fun CravingBanner(onTalk: () -> Unit) {
                     ) { Text(if (subs.size > 1) "${flowName(s)} passed" else "It passed", maxLines = 1) }
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                subs.forEach { s ->
+                    OutlinedButton(
+                        onClick = { Store.resolveCraving(s, "gave_in"); onGaveIn(s) },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = d.fg),
+                        border = BorderStroke(1.dp, d.fg.copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (subs.size > 1) "${flowName(s)}: gave in" else "I gave in", maxLines = 1) }
+                }
+            }
             Row {
                 TextButton(onClick = onTalk, colors = ButtonDefaults.textButtonColors(contentColor = d.fg)) { Text("Talk it through") }
-                TextButton(onClick = { Store.cravingFor = null }, colors = ButtonDefaults.textButtonColors(contentColor = d.fg)) { Text("Close") }
+                TextButton(onClick = { Store.cravingFor = null }, colors = ButtonDefaults.textButtonColors(contentColor = d.fg)) { Text("Later") }
             }
         }
     }
@@ -431,6 +450,7 @@ fun TodayScreen(
 ) {
     LaunchedEffect(Unit) { Store.refreshDay() }
     val c = MaterialTheme.colorScheme
+    val now = rememberNow()
     val today = Store.today()
     val first = Store.firstStart()
     val prep = first > today
@@ -491,6 +511,10 @@ fun TodayScreen(
                                         lineHeight = if (subs.size > 1) 58.sp else 92.sp,
                                         fontWeight = FontWeight.Light
                                     )
+                                    val st = Store.startMs(s)
+                                    if (!waiting && st in 1..now) {
+                                        Text("Clear for ${Track.since(st, now)}", style = MaterialTheme.typography.labelLarge)
+                                    }
                                 }
                             }
                         }
@@ -520,7 +544,7 @@ fun TodayScreen(
             item { Box(side) { TipCard(milestone, last = true) { dismissedMilestone = dayN } } }
         }
         if (Store.cravingFor != null) {
-            item { Box(side) { CravingBanner(onTalk) } }
+            item { Box(side) { CravingBanner(onTalk, onSlipped) } }
         }
 
         item {
@@ -529,6 +553,23 @@ fun TodayScreen(
                 StatTile(R.drawable.ic_gull, "$g", if (g == 1) "gull set free" else "gulls set free", Modifier.weight(1f))
                 StatTile(R.drawable.ic_t_sunset_2, "${Store.sunsets()}", "sunsets kept", Modifier.weight(1f))
                 StatTile(R.drawable.ic_t_circle_check, "$doneCount/$total", "done today", Modifier.weight(1f))
+            }
+        }
+
+        val nextCraving = if (first in 0..today) Track.comingUp().firstOrNull() else null
+        if (nextCraving != null) {
+            item {
+                val g = tone(Tone.Gold)
+                Surface(color = g.bg, contentColor = g.fg, shape = RoundedCornerShape(18.dp), modifier = side.fillMaxWidth()) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TIcon(R.drawable.ic_t_bulb, size = 20.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Heads up", style = MaterialTheme.typography.labelMedium)
+                            Text(nextCraving, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
             }
         }
 
@@ -688,7 +729,7 @@ fun TodayScreen(
 // ---------- Coach ----------
 
 @Composable
-fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onSend: (String) -> Unit) {
+fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onGaveIn: (String) -> Unit, onSend: (String) -> Unit) {
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
     var input by rememberSaveable { mutableStateOf("") }
@@ -700,7 +741,7 @@ fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onSend: (Str
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         if (Store.cravingFor != null) {
-            Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { CravingBanner(onTalk = onVoice) }
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { CravingBanner(onTalk = onVoice, onGaveIn = onGaveIn) }
         }
         LazyColumn(
             state = listState,

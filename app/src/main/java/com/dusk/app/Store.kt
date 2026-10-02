@@ -11,6 +11,9 @@ import org.json.JSONObject
 import java.time.LocalDate
 
 data class Msg(val role: String, val content: String)
+
+/** One craving: when it started, for what, and how it ended ("open", "passed", "gave_in"). */
+data class CravingEvent(val start: Long, val sub: String, val end: Long = 0L, val outcome: String = "open")
 data class Task(
     val id: Int, val time: String, val title: String,
     val note: String = "", val kind: String = "", val replaces: String = ""
@@ -67,6 +70,8 @@ object Store {
     /** Cannabis quit day when quitting both (cigarettes use startDay). */
     var startDay2 by mutableStateOf(-1L)
     var banked by mutableStateOf(0)
+    val cravings = mutableStateListOf<CravingEvent>()
+    val slips = mutableStateListOf<Pair<Long, String>>()
     private var gullTick by mutableStateOf(0)
     /** Which substance the current craving is about, while a craving session is open. "" means not specified. */
     var cravingFor by mutableStateOf<String?>(null)
@@ -115,11 +120,24 @@ object Store {
         messages.clear(); tasks.clear(); done.clear(); intake.clear()
         onboarded = false
         startDay = -1L; startDay2 = -1L; banked = 0; doneDay = -1L
+        cravings.clear(); slips.clear()
         if (flow.isEmpty()) return
 
         startDay = prefs.getLong(k("start"), -1L)
         startDay2 = prefs.getLong(k("start2"), -1L)
         banked = prefs.getInt(k("banked"), 0)
+        runCatching {
+            val ca = JSONArray(prefs.getString(k("cravings"), "[]"))
+            for (i in 0 until ca.length()) {
+                val o = ca.getJSONObject(i)
+                cravings.add(CravingEvent(o.getLong("t"), o.optString("s"), o.optLong("e"), o.optString("o", "open")))
+            }
+            val sa = JSONArray(prefs.getString(k("slips"), "[]"))
+            for (i in 0 until sa.length()) {
+                val o = sa.getJSONObject(i)
+                slips.add(o.getLong("t") to o.optString("s"))
+            }
+        }
         val ma = JSONArray(prefs.getString(k("msgs"), "[]"))
         for (i in 0 until ma.length()) {
             val o = ma.getJSONObject(i)
@@ -173,7 +191,19 @@ object Store {
 
     fun firstStart(): Long = substances().map { startOf(it) }.filter { it >= 0 }.minOrNull() ?: -1L
 
+    /** The exact quit moment: now if quitting today, otherwise the start of that day. */
+    fun startMs(sub: String): Long {
+        val saved = prefs.getLong(if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) k("start2Ms") else k("startMs"), -1L)
+        val day = startOf(sub)
+        if (day < 0) return -1L
+        if (saved > 0 && java.time.Instant.ofEpochMilli(saved).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay() == day) return saved
+        return LocalDate.ofEpochDay(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
     fun chooseStart(sub: String, day: Long) {
+        val ms = if (day == today()) System.currentTimeMillis()
+        else LocalDate.ofEpochDay(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        prefs.edit().putLong(if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) k("start2Ms") else k("startMs"), ms).apply()
         if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) {
             startDay2 = day
             prefs.edit().putLong(k("start2"), day).apply()
@@ -194,7 +224,7 @@ object Store {
     fun addGull(sub: String) {
         prefs.edit().putInt(k("gulls_$sub"), gulls(sub) + 1).apply()
         gullTick += 1
-        cravingFor = null
+        resolveCraving(sub, "passed")
     }
 
     private fun liveSunsets(): Int {
@@ -207,10 +237,51 @@ object Store {
 
     /** A slip restarts that substance's day count but keeps every sunset, gull and island piece. */
     fun recordSlip(sub: String) {
+        slips.add(System.currentTimeMillis() to sub)
+        saveSlips()
         val before = sunsets()
         chooseStart(sub, today())
         banked = (before - liveSunsets()).coerceAtLeast(0)
         prefs.edit().putInt(k("banked"), banked).apply()
+    }
+
+    private fun saveCravings() {
+        val a = JSONArray()
+        cravings.takeLast(500).forEach {
+            a.put(JSONObject().put("t", it.start).put("s", it.sub).put("e", it.end).put("o", it.outcome))
+        }
+        prefs.edit().putString(k("cravings"), a.toString()).apply()
+    }
+
+    private fun saveSlips() {
+        val a = JSONArray()
+        slips.takeLast(200).forEach { a.put(JSONObject().put("t", it.first).put("s", it.second)) }
+        prefs.edit().putString(k("slips"), a.toString()).apply()
+    }
+
+    /** A craving began. "" means the substance isn't known yet (quitting both). */
+    fun startCraving(sub: String) {
+        val now = System.currentTimeMillis()
+        val recentOpen = cravings.lastOrNull { it.outcome == "open" && now - it.start < 30 * 60_000 }
+        if (recentOpen == null) {
+            cravings.add(CravingEvent(now, sub))
+            saveCravings()
+        }
+        cravingFor = sub
+    }
+
+    /** How the latest open craving ended: "passed" or "gave_in". */
+    fun resolveCraving(sub: String, outcome: String) {
+        val now = System.currentTimeMillis()
+        val i = cravings.indexOfLast { it.outcome == "open" && (it.sub == sub || it.sub.isBlank()) }
+        if (i >= 0) {
+            cravings[i] = cravings[i].copy(sub = sub, end = now, outcome = outcome)
+        } else {
+            // Logged after the fact (no open craving): record it as a short one.
+            cravings.add(CravingEvent(now, sub, now, outcome))
+        }
+        saveCravings()
+        cravingFor = null
     }
 
     /** 0 bare island, 1 palm (3 sunsets), 2 hut (7), 3 boat (14), 4 lighthouse (30). */

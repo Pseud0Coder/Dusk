@@ -20,6 +20,9 @@ Add these in the repo under Settings > Secrets and variables > Actions > New rep
 
 Coaches: pick a persona in setup or Settings. Each has a personality the coach takes on and a voice from Inworld or Fish Audio. Without that provider's key, the persona still works with the phone's built-in voice.
 
+## Progress tracking
+The Progress tab shows time clear (live, per substance), where you are on the withdrawal tide, time to the next milestone, every logged craving (passed vs gave in, pass rate, typical minutes to pass), the last 7 days, the hours cravings hit, likely cravings for the rest of today, and rough estimates of what you got back. Cravings are logged from the craving button, check-ins, and voice; the coach sees the summary.
+
 ## Check-ins (optional)
 Dusk can send a short question before your hard moments, timed about 45 minutes ahead of the triggers in your routine. Each check-in offers: Check in (one tap), Talk (opens the coach), or Not now. Off unless chosen; pick 1 to 3 a day, for the first 2 weeks or ongoing, in setup or Settings. Check-ins have their own Android notification category.
 

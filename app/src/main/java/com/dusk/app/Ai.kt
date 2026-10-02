@@ -37,7 +37,7 @@ object Ai {
             "Saved routine:\n" + Store.tasks.joinToString("\n") { t ->
                 "${t.time} ${t.title}" + (if (t.id in Store.done) " (done today)" else "")
             }
-        val checkin = if (Store.lastCheckin.isBlank()) "" else "\nLast check-in: ${Store.lastCheckin}"
+        val checkin = if (Store.lastCheckin.isBlank()) "" else "\nLast check-in: ${Store.lastCheckin}" + Track.summaryForCoach()
         return "\n\nCurrent context\nFlow: ${flowName(Store.flow)}\nNow: $now\n$day$profile$checkin\n$routine"
     }
 
