@@ -77,6 +77,15 @@ object Store {
     var onboarded by mutableStateOf(false)
     var tipsSeen by mutableStateOf(false)
     var reduceMotion by mutableStateOf(false)
+    /** Check-ins: 0 off, otherwise how many a day. Off until the person chooses. */
+    var checkinFreq by mutableStateOf(0)
+    var checkinOngoing by mutableStateOf(false)
+    var checkinAsked by mutableStateOf(false)
+    var lastCheckin by mutableStateOf("")
+    /** Set when a check-in notification is tapped: "quick" or "talk". */
+    var pendingCheckin by mutableStateOf<String?>(null)
+    var pendingQuestion by mutableStateOf("")
+
     /** Which coach persona (personality + voice) the person picked. */
     var persona by mutableStateOf("kelsey")
     val intake = mutableStateListOf<Pair<String, String>>()
@@ -92,6 +101,10 @@ object Store {
         tipsSeen = prefs.getBoolean("tips_seen", false)
         reduceMotion = prefs.getBoolean("reduce_motion", false)
         persona = prefs.getString("persona", "kelsey") ?: "kelsey"
+        checkinFreq = prefs.getInt("checkin_freq", 0)
+        checkinOngoing = prefs.getBoolean("checkin_ongoing", false)
+        checkinAsked = prefs.getBoolean("checkin_asked", false)
+        lastCheckin = prefs.getString("checkin_last", "") ?: ""
         loadFlow()
         loaded = true
     }
@@ -289,6 +302,20 @@ object Store {
     fun chooseStartDay(day: Long) {
         startDay = day
         prefs.edit().putLong(k("start"), day).apply()
+    }
+
+    fun updateCheckins(freq: Int, ongoing: Boolean) {
+        checkinFreq = freq.coerceIn(0, 3)
+        checkinOngoing = ongoing
+        checkinAsked = true
+        prefs.edit().putInt("checkin_freq", checkinFreq).putBoolean("checkin_ongoing", ongoing)
+            .putBoolean("checkin_asked", true).apply()
+    }
+
+    fun logCheckin(mood: String) {
+        val time = java.time.LocalTime.now().withSecond(0).withNano(0)
+        lastCheckin = "$mood, at $time on day ${dayNumber()}"
+        prefs.edit().putString("checkin_last", lastCheckin).apply()
     }
 
     fun updatePersona(id: String) {

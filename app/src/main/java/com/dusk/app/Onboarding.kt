@@ -258,7 +258,8 @@ fun Onboarding(onDone: () -> Unit) {
                 step = "perms"
             }
         )
-        else -> PermsStep(onDone)
+        "perms" -> PermsStep { step = "checkins" }
+        else -> CheckinStep(onDone)
     }
 }
 
@@ -587,6 +588,52 @@ private fun PlanStep(
 }
 
 @Composable
+private fun CheckinStep(onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val c = MaterialTheme.colorScheme
+    var freq by rememberSaveable { mutableStateOf(2) }
+    var ongoing by rememberSaveable { mutableStateOf(false) }
+    val notifOk = Build.VERSION.SDK_INT < 33 ||
+        ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    Frame {
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TIcon(R.drawable.ic_t_bell, size = 28.dp, tint = c.primary)
+            Spacer(Modifier.width(12.dp))
+            Heading("Dusk can check in on you", 28)
+        }
+        Muted("In your first two weeks, Dusk can send a short question before your hard moments. Something like: \"Your after-dinner moment is coming up around 19:45. What's your plan for it?\"")
+        Muted("You can check in with one tap, talk it through, or ignore it. Ignoring it costs you nothing.")
+        Text("How often?", style = MaterialTheme.typography.titleMedium)
+        ChipRow(listOf("Off", "1 a day", "2 a day", "3 a day"), freq) { freq = it }
+        if (freq > 0) {
+            Text("For how long?", style = MaterialTheme.typography.titleMedium)
+            ChipRow(listOf("First 2 weeks", "Ongoing"), if (ongoing) 1 else 0) { ongoing = it == 1 }
+        }
+        if (!notifOk && freq > 0) {
+            Text(
+                "Check-ins arrive as notifications, which are off for Dusk right now. You can turn them on in your phone's app settings.",
+                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            )
+        }
+        Button(
+            onClick = {
+                Store.updateCheckins(freq, ongoing)
+                Store.markOnboarded()
+                Reminders.rescheduleAll(ctx)
+                onDone()
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) { Text(if (freq == 0) "No check-ins" else "Sounds good") }
+        Text(
+            "Change this or turn it off anytime in Settings.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun PermsStep(onDone: () -> Unit) {
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
@@ -596,7 +643,6 @@ private fun PermsStep(onDone: () -> Unit) {
         ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     fun finish() {
-        Store.markOnboarded()
         Reminders.rescheduleAll(ctx)
         onDone()
     }

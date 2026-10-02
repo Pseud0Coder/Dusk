@@ -52,8 +52,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Store.init(this)
         Reminders.ensureChannel(this)
+        handleCheckin(intent)
         enableEdgeToEdge()
         setContent { DuskTheme { App() } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleCheckin(intent)
+    }
+
+    /** Opened from a check-in notification: remember what the person tapped. */
+    private fun handleCheckin(i: Intent?) {
+        val mode = i?.getStringExtra("checkin") ?: return
+        Store.pendingQuestion = i.getStringExtra("question") ?: ""
+        Store.pendingCheckin = mode
+        i.removeExtra("checkin")
+        getSystemService(android.app.NotificationManager::class.java).cancel(Checkins.NOTIF_ID)
     }
 }
 
@@ -73,6 +88,7 @@ fun App() {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var voiceOpening by rememberSaveable { mutableStateOf<String?>(null) }
+    var quickCheckin by remember { mutableStateOf(false) }
 
     fun send(text: String) {
         val t = text.trim()
@@ -92,6 +108,24 @@ fun App() {
                 error = e.message ?: "The request failed. Check your connection and send again."
             } finally {
                 busy = false
+            }
+        }
+    }
+
+    LaunchedEffect(Store.pendingCheckin, Store.onboarded) {
+        if (!Store.onboarded) return@LaunchedEffect
+        when (Store.pendingCheckin) {
+            "talk" -> {
+                if (Store.pendingQuestion.isNotBlank()) Store.addMessage(Msg("assistant", Store.pendingQuestion))
+                voiceOpening = null
+                screen = Screen.Coach
+                Store.pendingCheckin = null
+            }
+            "quick" -> {
+                voiceOpening = null
+                screen = Screen.Today
+                quickCheckin = true
+                Store.pendingCheckin = null
             }
         }
     }
@@ -152,6 +186,7 @@ fun App() {
                         voiceOpening = CRAVING_OPENING
                     },
                     onOpenCoach = { screen = Screen.Coach },
+                    onAdjustCheckins = { screen = Screen.Setup },
                     onSlipped = { sub ->
                         Store.recordSlip(sub)
                         screen = Screen.Coach
@@ -161,6 +196,81 @@ fun App() {
                 Screen.Coach -> CoachScreen(busy, error, onVoice = { voiceOpening = CHAT_OPENING }) { send(it) }
                 Screen.Setup -> SettingsScreen()
             }
+        }
+    }
+
+    if (quickCheckin) {
+        val p = personaById(Store.persona)
+        AlertDialog(
+            onDismissRequest = { quickCheckin = false },
+            icon = { PersonaAvatar(p, 40.dp) },
+            title = { Text(p.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(Store.pendingQuestion.ifBlank { "How's it going, honestly?" })
+                    OutlinedButton(onClick = {
+                        quickCheckin = false
+                        Store.logCheckin("Steady")
+                        Toast.makeText(ctx, "Good. Keep the routine. Steady days build the next ones.", Toast.LENGTH_LONG).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        TIcon(R.drawable.ic_t_circle_check, size = 18.dp); Spacer(Modifier.width(8.dp)); Text("Steady")
+                    }
+                    OutlinedButton(onClick = {
+                        quickCheckin = false
+                        Store.logCheckin("Struggling")
+                        screen = Screen.Coach
+                        send("It's hard today.")
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        TIcon(R.drawable.ic_t_wave_sine, size = 18.dp); Spacer(Modifier.width(8.dp)); Text("It's hard today")
+                    }
+                    OutlinedButton(onClick = {
+                        quickCheckin = false
+                        Store.logCheckin("Craving")
+                        Store.cravingFor = if (Store.flow == FLOW_BOTH) "" else Store.flow
+                        screen = Screen.Coach
+                        send("I'm having a craving right now.")
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        TIcon(R.drawable.ic_t_ripple, size = 18.dp); Spacer(Modifier.width(8.dp)); Text("Craving right now")
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { quickCheckin = false }) { Text("Not now") } }
+        )
+    }
+}
+
+/** One-time offer for people who set up Dusk before check-ins existed. */
+@Composable
+fun CheckinOffer(onAdjust: () -> Unit) {
+    val ctx = LocalContext.current
+    val d = tone(Tone.Mint)
+    Surface(color = d.bg, contentColor = d.fg, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TIcon(R.drawable.ic_t_bell, size = 22.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Dusk can check in on you", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                "In your first two weeks, Dusk can send a short question before your hard moments. " +
+                    "Check in with one tap, talk it through, or ignore it. Off unless you say yes.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { Store.updateCheckins(2, false); Checkins.schedule(ctx) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Yes, 2 a day", maxLines = 1) }
+                OutlinedButton(
+                    onClick = { Store.updateCheckins(0, false); Checkins.schedule(ctx) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("No thanks", maxLines = 1) }
+            }
+            TextButton(
+                onClick = { Store.updateCheckins(Store.checkinFreq, Store.checkinOngoing); onAdjust() },
+                colors = ButtonDefaults.textButtonColors(contentColor = d.fg),
+                contentPadding = PaddingValues(0.dp)
+            ) { Text("Choose how often in Settings") }
         }
     }
 }
@@ -317,6 +427,7 @@ fun TodayScreen(
     onCraving: (String) -> Unit,
     onTalk: () -> Unit,
     onOpenCoach: () -> Unit,
+    onAdjustCheckins: () -> Unit,
     onSlipped: (String) -> Unit
 ) {
     LaunchedEffect(Unit) { Store.refreshDay() }
@@ -402,6 +513,9 @@ fun TodayScreen(
                     }
                 }
             }
+        }
+        if (!Store.checkinAsked) {
+            item { Box(side) { CheckinOffer(onAdjustCheckins) } }
         }
         if (milestone != null) {
             item { Box(side) { TipCard(milestone, last = true) { dismissedMilestone = dayN } } }
@@ -766,6 +880,42 @@ fun SettingsScreen() {
                 "Coaches without a voice key still chat and talk, using your phone's built-in voice.",
                 style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
             )
+        }
+
+        HorizontalDivider(color = c.outlineVariant)
+
+        // Check-ins
+        SectionTitle(R.drawable.ic_t_bell, "Check-ins from Dusk")
+        Text(
+            "Dusk can send a short question before your hard moments, timed around the triggers in your routine. " +
+                "Check in with one tap, talk it through, or ignore it.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(0 to "Off", 1 to "1 a day", 2 to "2 a day", 3 to "3 a day").forEach { (n, label) ->
+                Choice(label, Store.checkinFreq == n, Modifier.weight(1f)) {
+                    Store.updateCheckins(n, Store.checkinOngoing)
+                    Checkins.schedule(ctx)
+                }
+            }
+        }
+        if (Store.checkinFreq > 0) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("First 2 weeks", !Store.checkinOngoing, Modifier.weight(1f)) {
+                    Store.updateCheckins(Store.checkinFreq, false); Checkins.schedule(ctx)
+                }
+                Choice("Ongoing", Store.checkinOngoing, Modifier.weight(1f)) {
+                    Store.updateCheckins(Store.checkinFreq, true); Checkins.schedule(ctx)
+                }
+            }
+            Text(
+                "Around ${Checkins.times().joinToString(", ")}." +
+                    (if (Checkins.active()) "" else " They start on day 1."),
+                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            )
+            IconAction(R.drawable.ic_t_message_circle, "Send a sample check-in") {
+                Checkins.show(ctx, Checkins.times().firstOrNull() ?: "18:30")
+            }
         }
 
         HorizontalDivider(color = c.outlineVariant)

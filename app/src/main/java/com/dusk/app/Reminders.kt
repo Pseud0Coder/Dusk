@@ -58,7 +58,7 @@ object Reminders {
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
 
-    private fun nextTrigger(time: String): Long {
+    fun nextTrigger(time: String): Long {
         val (h, m) = time.split(":").map { it.toInt() }
         var t = LocalDate.now().atTime(h, m)
         if (!t.isAfter(LocalDateTime.now())) t = t.plusDays(1)
@@ -87,6 +87,7 @@ object Reminders {
         Store.tasks.forEach { schedule(ctx, it) }
         Store.setScheduledIds(Store.tasks.map { it.id })
         schedulePrep(ctx)
+        Checkins.schedule(ctx)
     }
 
     fun show(ctx: Context, id: Int, title: String, text: String, withDone: Boolean = true) {
@@ -121,6 +122,16 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         Store.init(ctx)
+        if (intent.action == Checkins.ACTION_CHECKIN) {
+            val t = intent.getStringExtra("time") ?: return
+            if (Checkins.active()) Checkins.show(ctx, t)
+            Checkins.schedule(ctx) // next round
+            return
+        }
+        if (intent.action == Checkins.ACTION_DISMISS) {
+            ctx.getSystemService(NotificationManager::class.java).cancel(Checkins.NOTIF_ID)
+            return
+        }
         if (intent.action == Reminders.ACTION_PREP) {
             Reminders.show(
                 ctx, Reminders.PREP_ID, "Day 1 is tomorrow",
