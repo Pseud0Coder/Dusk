@@ -17,6 +17,13 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -44,6 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -66,7 +76,7 @@ private val mainHandler = Handler(Looper.getMainLooper())
 
 object CloudTts {
     /** Speaks [text] in [p]'s voice. Returns an audio file, or null to fall back to the phone's voice. */
-    suspend fun synthesize(ctx: Context, text: String, p: Persona): File? = withContext(Dispatchers.IO) {
+    suspend fun synthesize(ctx: Context, text: String, p: Persona, name: String = "voice_reply"): File? = withContext(Dispatchers.IO) {
         if (!p.voiceReady()) return@withContext null
         try {
             when (p.provider) {
@@ -80,7 +90,7 @@ object CloudTts {
                         "Basic ${BuildConfig.INWORLD_KEY}", body.toString(), emptyMap()
                     )
                     val b64 = JSONObject(String(res)).optString("audioContent")
-                    if (b64.isBlank()) null else write(ctx, Base64.decode(b64, Base64.DEFAULT))
+                    if (b64.isBlank()) null else write(ctx, Base64.decode(b64, Base64.DEFAULT), name)
                 }
                 Provider.Fish -> {
                     val body = JSONObject()
@@ -90,7 +100,8 @@ object CloudTts {
                         .put("prosody", JSONObject().put("speed", 0.95))
                     write(
                         ctx,
-                        post(
+                        name = name,
+                        bytes = post(
                             "https://api.fish.audio/v1/tts",
                             "Bearer ${BuildConfig.FISH_KEY}", body.toString(),
                             mapOf("model" to BuildConfig.FISH_MODEL)
@@ -122,9 +133,9 @@ object CloudTts {
         }
     }
 
-    private fun write(ctx: Context, bytes: ByteArray): File? {
+    private fun write(ctx: Context, bytes: ByteArray, name: String): File? {
         if (bytes.isEmpty()) return null
-        val f = File(ctx.cacheDir, "voice_reply")
+        val f = File(ctx.cacheDir, name)
         f.writeBytes(bytes)
         return f
     }
@@ -149,6 +160,16 @@ class Speaker(context: Context) {
                 ?.maxByOrNull { it.quality }
             if (best != null) t.setVoice(best)
         }
+    }
+
+    /** Renders [text] in [persona]'s voice ahead of time. Null means use the phone's voice. */
+    suspend fun prepare(text: String, persona: Persona = personaById(Store.persona), name: String = "voice_reply"): File? =
+        CloudTts.synthesize(ctx, text.trim(), persona, name)
+
+    /** Plays audio prepared earlier, or speaks [text] with the phone's voice if there isn't any. */
+    suspend fun speakPrepared(file: File?, text: String) {
+        if (file != null && play(file)) return
+        speakLocal(text.trim())
     }
 
     /** Speaks the text and returns when it's finished (or cancelled). */
@@ -296,13 +317,65 @@ class Listener(context: Context) {
 
 enum class VoiceState { Idle, Speaking, Paused, Listening, Thinking }
 
+/**
+ * A calm sea line instead of a glowing ball. Thin, low-contrast waves that taper at
+ * the edges: nearly still when idle, a slow swell while the coach speaks, and gently
+ * following your voice while listening.
+ */
+@Composable
+fun TideLine(state: VoiceState, level: Float, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val moving = !Store.reduceMotion
+    val phase = if (moving) {
+        rememberInfiniteTransition(label = "tide").animateFloat(
+            initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
+            animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
+            label = "tidePhase"
+        ).value
+    } else 0.6f
+    val target = when (state) {
+        VoiceState.Speaking -> 0.42f
+        VoiceState.Listening -> 0.12f + level * 0.55f
+        VoiceState.Thinking -> 0.18f
+        VoiceState.Paused, VoiceState.Idle -> 0.06f
+    }
+    val amp by animateFloatAsState(target, animationSpec = tween(900), label = "tideAmp")
+    val glow by animateFloatAsState(if (state == VoiceState.Speaking || state == VoiceState.Listening) 1f else 0f, tween(1200), label = "tideGlow")
+
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val mid = h / 2f
+        // A faint warm glow where the sun would sit on the horizon.
+        drawCircle(OrbColors[1].copy(alpha = 0.10f + 0.10f * glow), radius = h * 0.32f, center = Offset(w / 2f, mid))
+        val waves = listOf(
+            Triple(1.0f, 1.0f, 0.85f),
+            Triple(0.6f, 1.7f, 0.45f),
+            Triple(0.35f, 2.4f, 0.25f),
+        )
+        waves.forEachIndexed { i, (ampMul, freq, alpha) ->
+            val path = Path()
+            val steps = 90
+            for (k in 0..steps) {
+                val t = k.toFloat() / steps
+                val x = w * t
+                val taper = kotlin.math.sin(Math.PI * t).toFloat()
+                val y = mid + kotlin.math.sin(t * 2 * Math.PI * freq + phase * (1 + i * 0.35f)).toFloat() *
+                    amp * ampMul * h * 0.38f * taper
+                if (k == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, c.primary.copy(alpha = alpha), style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        }
+    }
+}
+
 /** Splits a reply into sentences so speech can stop and resume at clean points. */
 fun sentences(text: String): List<String> =
     text.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotBlank() }
 
 /**
  * A hands-free conversation with the coach. Dusk speaks, then listens, then replies.
- * Tap the circle to jump in while Dusk is talking, or to finish your turn early.
+ * Tap the tide line to jump in while the coach is talking, or to finish your turn early.
  * [onRoutine] is called when the coach proposes a routine (null keeps the conversation going).
  */
 @Composable
@@ -342,10 +415,17 @@ fun VoiceScreen(
     var remaining by remember { mutableStateOf<List<String>>(emptyList()) }
     var routineAfter by remember { mutableStateOf(false) }
 
-    suspend fun speakRemaining() {
+    suspend fun CoroutineScope.speakRemaining() {
+        var n = 0
+        var next: Deferred<File?>? = null
         while (remaining.isNotEmpty()) {
+            val current = remaining.first()
+            val audio = (next ?: async { speaker.prepare(current, name = "sentence_${n % 2}") }).await()
+            n += 1
+            val following = remaining.getOrNull(1)
+            next = following?.let { f -> val slot = n % 2; async { speaker.prepare(f, name = "sentence_$slot") } }
             state = VoiceState.Speaking
-            speaker.speak(remaining.first())
+            speaker.speakPrepared(audio, current)
             remaining = remaining.drop(1)
         }
     }
@@ -374,8 +454,8 @@ fun VoiceScreen(
                     state = VoiceState.Idle
                     val quiet = h.error == null || h.error == SpeechRecognizer.ERROR_NO_MATCH ||
                         h.error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                    hint = if (quiet) "I'm here whenever you're ready. Tap the circle to talk."
-                    else "I couldn't hear that. Tap the circle to try again."
+                    hint = if (quiet) "I'm here whenever you're ready. Tap the line to talk."
+                    else "I couldn't hear that. Tap the line to try again."
                     return@launch
                 }
                 heard = text
@@ -387,7 +467,7 @@ fun VoiceScreen(
                     throw e
                 } catch (e: Exception) {
                     state = VoiceState.Idle
-                    hint = e.message ?: "Something went wrong. Tap the circle to try again."
+                    hint = e.message ?: "Something went wrong. Tap the line to try again."
                     return@launch
                 }
                 Store.addMessage(Msg("assistant", reply))
@@ -446,10 +526,10 @@ fun VoiceScreen(
     }
     val persona = personaById(Store.persona)
     val status = when (state) {
-        VoiceState.Idle -> "Tap the circle to talk"
-        VoiceState.Paused -> "Paused. Resume, or tap the circle to talk."
-        VoiceState.Speaking -> "${persona.name} is talking. Tap to jump in."
-        VoiceState.Listening -> "Listening. Tap when you're done."
+        VoiceState.Idle -> "Tap the line to talk"
+        VoiceState.Paused -> "Paused. Resume, or tap the line to talk."
+        VoiceState.Speaking -> "${persona.name} is talking. Tap the line to jump in."
+        VoiceState.Listening -> "Listening. Tap the line when you're done."
         VoiceState.Thinking -> "Thinking…"
     }
 
@@ -496,25 +576,15 @@ fun VoiceScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(status, style = MaterialTheme.typography.titleMedium, color = c.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier
-                            .size(220.dp)
-                            .graphicsLayer {
-                                val r = if (Store.reduceMotion) 1.12f else scale * 1.18f
-                                scaleX = r; scaleY = r
-                            }
-                            .border(2.dp, OrbColors[1].copy(alpha = 0.5f), CircleShape)
-                    )
-                    Box(
-                        Modifier
-                            .size(220.dp)
-                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                            .clip(CircleShape)
-                            .background(Brush.radialGradient(OrbColors))
-                            .clickable(onClickLabel = "Talk") { tapOrb() }
-                    )
-                }
+                TideLine(
+                    state = state,
+                    level = level,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable(onClickLabel = "Talk") { tapOrb() }
+                )
                 Spacer(Modifier.weight(1f))
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),

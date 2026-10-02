@@ -11,7 +11,4 @@
         android:pathData="M34,71 L74,71" />
     <path android:strokeColor="#9FD0D4" android:strokeWidth="3" android:strokeLineCap="round"
         android:pathData="M43,79 L65,79" />
-    <!-- One gull -->
-    <path android:strokeColor="#1F3A4D" android:strokeWidth="2.2" android:strokeLineCap="round"
-        android:pathData="M60,41 Q63,37.5 66,41 Q69,37.5 72,41" />
 </vector>

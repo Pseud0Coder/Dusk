@@ -46,7 +46,7 @@ object Ai {
         val voice = if (voiceOpening == null) "" else
             VOICE_MODE + "\nThis voice session opened with you saying: \"$voiceOpening\""
         val system = promptFor(Store.flow) + personaById(Store.persona).promptBlock() + voice + context()
-        return complete(system, Store.messages.takeLast(40).toList())
+        return complete(system, Store.messages.takeLast(40).toList(), fast = voiceOpening != null)
     }
 
     /**
@@ -67,7 +67,7 @@ object Ai {
             "Your part should cover: $topic. Reply with only the line to speak."
         if (Store.effectiveKey().isBlank()) return fallbackIntro(p, part)
         val line = withTimeoutOrNull(15_000) {
-            runCatching { complete(system, listOf(Msg("user", user))) }.getOrNull()
+            runCatching { complete(system, listOf(Msg("user", user)), fast = true) }.getOrNull()
         }
         return line?.trim()?.trim('"')?.takeIf { it.isNotBlank() && it.length < 400 } ?: fallbackIntro(p, part)
     }
@@ -75,15 +75,36 @@ object Ai {
     private fun fallbackIntro(p: Persona, part: Int): String =
         "I'm ${p.name}. " + INTRO_FALLBACKS[part]
 
-    /** Sends one conversation to OpenRouter and returns the reply text. */
-    private suspend fun complete(system: String, turns: List<Msg>): String {
+    /** Set once if the model refuses to skip its thinking step, so we stop asking. */
+    @Volatile private var reasoningMandatory = false
+
+    /**
+     * Sends one conversation to OpenRouter and returns the reply text.
+     * [fast] skips the model's thinking step for short spoken lines, which cuts most of the wait.
+     */
+    private suspend fun complete(system: String, turns: List<Msg>, fast: Boolean = false): String {
+        if (fast && !reasoningMandatory) {
+            try {
+                return completeOnce(system, turns, skipThinking = true)
+            } catch (e: Exception) {
+                if (e.message?.contains("mandatory", ignoreCase = true) == true ||
+                    e.message?.contains("reasoning", ignoreCase = true) == true
+                ) reasoningMandatory = true else throw e
+            }
+        }
+        return completeOnce(system, turns, skipThinking = false)
+    }
+
+    private suspend fun completeOnce(system: String, turns: List<Msg>, skipThinking: Boolean): String {
         val key = Store.effectiveKey()
         val model = DEFAULT_MODEL
 
         return withContext(Dispatchers.IO) {
             val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", system))
             turns.forEach { msgs.put(JSONObject().put("role", it.role).put("content", it.content)) }
-            val body = JSONObject().put("model", model).put("messages", msgs).toString()
+            val req = JSONObject().put("model", model).put("messages", msgs)
+            if (skipThinking) req.put("reasoning", JSONObject().put("effort", "none")).put("max_tokens", 200)
+            val body = req.toString()
 
             val c = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection
             try {

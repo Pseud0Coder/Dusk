@@ -20,6 +20,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.CircularProgressIndicator
+import android.content.Context
+import java.io.File
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,7 +120,7 @@ fun PersonaCard(
     p: Persona,
     selected: Boolean,
     previewing: Boolean,
-    previewLabel: String,
+    loading: Boolean,
     onSelect: () -> Unit,
     onPreview: () -> Unit,
     modifier: Modifier = Modifier
@@ -136,9 +145,23 @@ fun PersonaCard(
             }
             Text(p.vibe, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onPreview, contentPadding = PaddingValues(0.dp)) {
-                TIcon(if (previewing) R.drawable.ic_t_player_stop else R.drawable.ic_t_sparkles, size = 16.dp)
-                Spacer(Modifier.width(6.dp))
-                Text(if (previewing) previewLabel else "Hear ${p.name}")
+                when {
+                    previewing && loading -> {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = c.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Warming up…")
+                    }
+                    previewing -> {
+                        TIcon(R.drawable.ic_t_player_stop, size = 16.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Stop")
+                    }
+                    else -> {
+                        TIcon(R.drawable.ic_t_sparkles, size = 16.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Hear ${p.name}")
+                    }
+                }
             }
             if (!p.voiceReady()) {
                 Text(
@@ -152,13 +175,13 @@ fun PersonaCard(
 
 /** Two-column grid of personas. Tap to choose, tap "Hear" to listen first. */
 @Composable
-fun PersonaGrid(previewingId: String?, previewLabel: String, onPreview: (Persona) -> Unit) {
+fun PersonaGrid(previewingId: String?, loading: Boolean, onPreview: (Persona) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PERSONAS.chunked(2).forEach { pair ->
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 pair.forEach { p ->
                     PersonaCard(
-                        p, selected = Store.persona == p.id, previewing = previewingId == p.id, previewLabel = previewLabel,
+                        p, selected = Store.persona == p.id, previewing = previewingId == p.id, loading = loading,
                         onSelect = { Store.updatePersona(p.id) },
                         onPreview = { onPreview(p) },
                         modifier = Modifier.weight(1f).fillMaxHeight()
@@ -195,15 +218,45 @@ val INTRO_FALLBACKS = listOf(
     "Pick the voice you want beside you on the hard nights. Then let's begin.",
 )
 
-/** Session-wide progress through the introduction, shared by every preview. */
+/** A ready-to-play intro line: the words, and the audio if the coach's voice rendered. */
+data class PreparedLine(val text: String, val audio: File?)
+
+/**
+ * Session-wide progress through the introduction, shared by every preview.
+ * The next part is prepared in the background for every coach (words and voice),
+ * so tapping "Hear" plays almost instantly instead of waiting on the model and the voice.
+ */
 object Intro {
     var next by mutableStateOf(0)
     val spoken = mutableStateListOf<String>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val cache = mutableMapOf<String, Deferred<PreparedLine>>()
+
+    private fun key(p: Persona, part: Int) = "${p.id}:$part"
+
+    private fun prepare(ctx: Context, p: Persona, part: Int): Deferred<PreparedLine> =
+        scope.async {
+            val text = Ai.introLine(p, part, spoken.takeLast(2))
+            val audio = CloudTts.synthesize(ctx.applicationContext, text, p, "intro_${p.id}_$part")
+            PreparedLine(text, audio)
+        }
+
+    /** Starts preparing [part] for every coach. Already-prepared lines are reused. */
+    fun prefetch(ctx: Context, part: Int) {
+        PERSONAS.forEach { p -> cache.getOrPut(key(p, part)) { prepare(ctx, p, part) } }
+    }
+
+    /** The line for this coach and part, prepared earlier if possible. */
+    fun take(ctx: Context, p: Persona, part: Int): Deferred<PreparedLine> =
+        cache.getOrPut(key(p, part)) { prepare(ctx, p, part) }
+
+    /** Has this coach's line for the current part finished preparing? */
+    fun ready(p: Persona, part: Int): Boolean = cache[key(p, part)]?.isCompleted == true
 }
 
 /**
- * The coach selector. Tapping "Hear" on a coach has DeepSeek write the next part
- * of Dusk's introduction in that coach's personality, then speaks it in their voice.
+ * The coach selector. Tapping "Hear" plays the next part of Dusk's introduction,
+ * written by DeepSeek in that coach's personality and spoken in their voice.
  */
 @Composable
 fun PersonaPicker() {
@@ -213,28 +266,33 @@ fun PersonaPicker() {
     val speaker = remember { Speaker(ctx) }
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
     var busyId by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var writing by remember { mutableStateOf(false) }
     var caption by remember { mutableStateOf<Triple<Persona, Int, String>?>(null) }
 
+    // Get the first part ready for every coach as soon as the selector appears.
+    LaunchedEffect(Unit) { Intro.prefetch(ctx, Intro.next % INTRO_TOPICS.size) }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PersonaGrid(busyId, "Stop") { p ->
+        PersonaGrid(busyId, loading) { p ->
             val wasMe = busyId == p.id
             job?.cancel()
             speaker.stop()
             busyId = null
-            writing = false
+            loading = false
             if (!wasMe) {
                 busyId = p.id
-                writing = true
+                val part = Intro.next % INTRO_TOPICS.size
+                loading = !Intro.ready(p, part)
                 job = scope.launch {
-                    val part = Intro.next % INTRO_TOPICS.size
-                    val line = Ai.introLine(p, part, Intro.spoken.takeLast(2))
-                    Intro.spoken.add(line)
+                    val line = Intro.take(ctx, p, part).await()
+                    Intro.spoken.add(line.text)
                     Intro.next = part + 1
-                    caption = Triple(p, part, line)
-                    writing = false
-                    speaker.speak(line, p)
+                    caption = Triple(p, part, line.text)
+                    loading = false
+                    // While this coach speaks, every coach gets ready for the next part.
+                    Intro.prefetch(ctx, Intro.next % INTRO_TOPICS.size)
+                    speaker.speakPrepared(line.audio, line.text)
                     busyId = null
                 }
             }

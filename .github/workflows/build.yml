@@ -44,7 +44,19 @@ jobs:
           INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}
           FISH_KEY: ${{ secrets.FISH_KEY }}
           FISH_MODEL: ${{ secrets.FISH_MODEL }}
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
         run: |
+          for mode in fast normal; do
+            if [ "$mode" = fast ]; then extra=',"reasoning":{"effort":"none"},"max_tokens":200'; else extra=''; fi
+            t0=$(date +%s%N)
+            code=$(curl -s -o /tmp/or.json -w "%{http_code}" https://openrouter.ai/api/v1/chat/completions \
+              -H "Authorization: Bearer $OPENROUTER_KEY" -H "Content-Type: application/json" \
+              -d "{\"model\":\"deepseek/deepseek-v4.1-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"In one short sentence, say what a quit coach does.\"}]$extra}")
+            t1=$(date +%s%N)
+            msg="Coach $mode=$code in $(( (t1 - t0) / 1000000 ))ms"
+            if [ "$code" != "200" ]; then msg="$msg ($(head -c 200 /tmp/or.json | tr -d '\n\"'))"; fi
+            echo "::notice title=Coach speed::$msg"
+          done
           IM="${INWORLD_MODEL:-inworld-tts-2}"; FM="${FISH_MODEL:-s2.1-pro-free}"; out=""
           for v in Kelsey Jonah Priya Dennis; do
             code=$(curl -s -o /tmp/iw.json -w "%{http_code}" -X POST https://api.inworld.ai/tts/v1/voice \
