@@ -124,7 +124,7 @@ class ReminderReceiver : BroadcastReceiver() {
         if (intent.action == Reminders.ACTION_PREP) {
             Reminders.show(
                 ctx, Reminders.PREP_ID, "Day 1 is tomorrow",
-                "Tonight, clear out anything you'd reach for. Tomorrow's sunset is the first one you'll collect.", withDone = false
+                "Tonight, clear out anything you'd reach for. Tomorrow will be hard. You'll be ready.", withDone = false
             )
             return
         }

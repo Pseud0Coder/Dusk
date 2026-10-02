@@ -278,8 +278,8 @@ private fun PickStep(onPick: (String) -> Unit) {
             Modifier.navigationBarsPadding().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Heading("Every clear day is a sunset you keep")
-            Muted("Dusk builds a routine around your day and reminds you at the right moments. Every craving you ride out sets a gull free.")
+            Heading("After dusk comes the night")
+            Muted("Quitting is hard, and some nights will be harder than the first days. Dusk tells you what's coming and helps you get ready while there's still light.")
             Spacer(Modifier.height(4.dp))
             Text("What are you quitting? Pick one or both.", style = MaterialTheme.typography.titleMedium)
             SelectCard("Cigarettes", R.drawable.ic_t_smoking, cig) { cig = !cig; error = null }
@@ -322,7 +322,7 @@ private fun PersonaStep(onNext: () -> Unit) {
     Frame {
         Spacer(Modifier.height(16.dp))
         Heading("Who would you like to talk to?")
-        Muted("Each coach has their own personality and voice. Tap \"Hear\" on a few, and they'll walk you through Dusk together.")
+        Muted("Same honest Dusk, different voices. Tap \"Hear\" on a few, and they'll walk you through what's ahead.")
         PersonaPicker()
         Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp)) {
             TIcon(R.drawable.ic_t_microphone, size = 20.dp)

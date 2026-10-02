@@ -188,10 +188,10 @@ private fun prepLines(flow: String): List<String> = when (flow) {
 private val MILESTONES = listOf(3, 7, 14, 30)
 
 private fun milestoneText(day: Int): String? = when (day) {
-    3 -> "Three days. A palm just grew on your island. Time for the reward you planned."
-    7 -> "One full week. The first week is the hardest, and you did it. Your island has a hut now."
-    14 -> "Two weeks. For most people the worst of withdrawal is behind them. A boat just arrived."
-    30 -> "Thirty days. A whole month clear. The lighthouse is lit."
+    3 -> "Day 3. Your body's protest is at its loudest around now. It can't stay this loud. A palm grew on your island."
+    7 -> "One week. The physical part is easing. The mental part is just starting to argue. Your island has a hut."
+    14 -> "Two weeks. This is where people relax and slip. Keep the routine anyway. A boat arrived."
+    30 -> "Thirty days. The cravings will still visit. Now you know how to answer the door. The lighthouse is lit."
     else -> null
 }
 
@@ -263,7 +263,7 @@ fun CravingBanner(onTalk: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text("Riding out a craving", style = MaterialTheme.typography.titleMedium)
             }
-            Text("Cravings usually pass within minutes. When this one does, let it go.", style = MaterialTheme.typography.bodySmall)
+            Text("It'll feel endless. It isn't. Most pass within minutes. When this one does, let it go.", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 subs.forEach { s ->
                     Button(
@@ -392,9 +392,9 @@ fun TodayScreen(
         if (!Store.tipsSeen) {
             item {
                 val tips = listOf(
-                    "This is your sky. The sun sinks as you finish your routine, and every clear day becomes a sunset you keep.",
-                    "When a craving hits, tap the coral button. When it passes, you set a gull free.",
-                    "Your island grows at day 3, 7, 14, and 30. Slips never take anything away."
+                    "The sun sets as you work through today's routine. Every day you get through becomes a sunset you keep.",
+                    "When a craving hits, tap the coral button. It'll feel endless. It isn't. When it passes, a gull goes free.",
+                    "Your island grows at day 3, 7, 14, and 30. A slip restarts the count. It never takes anything away."
                 )
                 Box(side) {
                     TipCard(tips[tip.coerceIn(0, 2)], last = tip >= 2) {
@@ -548,11 +548,11 @@ fun TodayScreen(
     if (slipDialog) {
         AlertDialog(
             onDismissRequest = { slipDialog = false },
-            title = { Text("That's okay") },
+            title = { Text("It happened. Now what?") },
             text = {
                 Text(
-                    "Slips happen. Your sunsets, gulls, and island all stay. The day count restarts today, " +
-                        "and your coach will help you work out what happened." +
+                    "A slip is information, not a verdict. Your day count restarts today. Your sunsets, gulls, and island stay. " +
+                        "Next, your coach helps you find what led to it, so the plan gets better." +
                         (if (subs.size > 1) " Which one was it?" else "")
                 )
             },

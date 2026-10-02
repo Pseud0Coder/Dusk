@@ -1,6 +1,6 @@
 # Dusk
 
-A minimal Android quit coach. An AI coach (DeepSeek V4.1 Flash via OpenRouter) gets to know your day, maps a research-based withdrawal timeline onto your real calendar, and turns it into a daily routine with reminders.
+A quit coach that doesn't hype recovery. After dusk comes the night: Dusk tells you the truth about what's coming and helps you prepare. See PERSONALITY.md. An AI coach (DeepSeek V4.1 Flash via OpenRouter) gets to know your day, maps a research-based withdrawal timeline onto your real calendar, and turns it into a daily routine with reminders.
 
 Two flows, each with its own coach, timeline, routine and day count. You pick one when you first open the app and can switch in Settings.
 

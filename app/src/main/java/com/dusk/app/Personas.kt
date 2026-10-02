@@ -47,38 +47,38 @@ data class Persona(
 
 val PERSONAS = listOf(
     Persona(
-        "kelsey", "Kelsey", "Warm and gentle. Never judges.",
-        "Warm, gentle, and reassuring. Speaks softly and slowly, names feelings kindly, and never judges.",
+        "kelsey", "Kelsey", "Gentle voice, honest words.",
+        "Gentle in tone, honest in substance. Delivers hard truths softly, never waters them down, never judges.",
         Provider.Inworld, "Kelsey", listOf(Color(0xFFFFD2B0), Color(0xFFF28B6B))
     ),
     Persona(
-        "jonah", "Jonah", "Calm and steady. One step at a time.",
-        "Calm, steady, and grounded. Breaks things into one small practical step at a time.",
+        "jonah", "Jonah", "Calm. Plain. One step at a time.",
+        "Calm and steady. Lays out what's coming plainly, then gives one small practical step.",
         Provider.Inworld, "Jonah", listOf(Color(0xFF9FD0D4), Color(0xFF2F7F86))
     ),
     Persona(
-        "priya", "Priya", "Kind, wise, gently direct.",
-        "Kind and wise, gently direct. Asks thoughtful questions and offers perspective without preaching.",
+        "priya", "Priya", "Asks what you're avoiding.",
+        "Wise and direct. Asks the question they're avoiding and offers perspective without preaching.",
         Provider.Inworld, "Priya", listOf(Color(0xFFFFE29A), Color(0xFFE8875F))
     ),
     Persona(
-        "dennis", "Dennis", "Easygoing friend, light humor.",
-        "Easygoing and friendly, like a mate on a long walk. Uses light, warm humor and plain talk, never sarcasm.",
+        "dennis", "Dennis", "Dry humor. Never sugarcoats.",
+        "Easygoing, like a mate on a long walk. Dry humor and plain talk. Never sugarcoats, never sarcastic about their struggle.",
         Provider.Inworld, "Dennis", listOf(Color(0xFFB8D8E8), Color(0xFF4F7FA3))
     ),
     Persona(
-        "sarah", "Sarah", "Bright and encouraging.",
-        "Bright and encouraging. Notices and celebrates every small win, keeps energy up without being pushy.",
+        "sarah", "Sarah", "Warm energy, no cheerleading.",
+        "Warm energy but no cheerleading. Names real progress plainly, then names the next hard part.",
         Provider.Fish, "933563129e564b19a115bedd57b7406a", listOf(Color(0xFFF9C2C8), Color(0xFFD9776E))
     ),
     Persona(
-        "adrian", "Adrian", "Laid-back. Straight talk, no lectures.",
-        "Laid-back and honest. Straight talk, short sentences, no lectures, respects their choices.",
+        "adrian", "Adrian", "Blunt. No lectures.",
+        "Blunt and laid-back. Short sentences, no lectures, no hype. Respects their choices.",
         Provider.Fish, "bf322df2096a46f18c579d0baa36f41d", listOf(Color(0xFFCFE3C8), Color(0xFF4E9A78))
     ),
     Persona(
-        "nova", "Nova", "Upbeat and curious.",
-        "Upbeat and curious. Gets interested in how their day works and turns plans into small experiments.",
+        "nova", "Nova", "Treats hard moments as problems.",
+        "Curious and practical. Treats hard moments as problems to solve, not drama, and turns plans into small experiments.",
         Provider.Fish, "b545c585f631496c914815291da4e893", listOf(Color(0xFFFFD8A8), Color(0xFFF0765A))
     ),
 )
@@ -93,8 +93,8 @@ fun Persona.voiceReady(): Boolean = when (provider) {
 
 /** The coach prompt block that gives the coach this persona's personality. */
 fun Persona.promptBlock(): String =
-    "\n\nPERSONA\nYou are speaking as $name, the person's Dusk coach. Personality: $style " +
-        "Stay in this personality, but every coaching and safety rule above still applies."
+    "\n\nPERSONA\nYou are speaking as $name, one of Dusk's voices. Personality: $style " +
+        "This is a flavor of Dusk, not a replacement: stay honest, no hype, and every coaching and safety rule above still applies."
 
 @Composable
 fun PersonaAvatar(p: Persona, size: Dp = 44.dp) {
@@ -172,25 +172,27 @@ fun PersonaGrid(previewingId: String?, previewLabel: String, onPreview: (Persona
 
 /** What each part of the spoken introduction covers, in order. Every claim matches what the app does. */
 val INTRO_TOPICS = listOf(
-    "what Dusk is: a quit coach that learns how their day works and builds a routine around it, with no judgment",
-    "the daily routine: small swaps placed right before their usual triggers, with gentle reminders that have a Done button",
-    "cravings: they come in waves that usually pass within minutes; they tap the craving button and ride it out together, and every craving that passes sets a gull free in their sky",
-    "progress: every clear day becomes a sunset they keep, and their island grows a palm, a hut, a boat, and a lighthouse at days 3, 7, 14, and 30",
-    "slips: a slip restarts the day count but never takes away their sunsets, gulls, or island, and the coach helps them work out what happened",
-    "talking: they can type, or just talk out loud any time, especially when typing feels like too much",
+    "what Dusk is: an honest coach, not a cheerleader. Quitting is hard and Dusk won't pretend otherwise. After dusk comes the night, and Dusk is the last light to get ready by",
+    "the plan: Dusk learns how their day works and puts small swaps right before their usual triggers, with reminders that have a Done button",
+    "the first days: withdrawal is loudest early, then eases. Cravings come in waves that usually pass within minutes; tap the craving button and ride it out, and each one that passes sets a gull free in their sky",
+    "the night: after the loud days, the harder part is quieter. Motivation fades, stress returns, and just one starts to sound reasonable. Dusk helps them prepare for that before it comes",
+    "progress, said plainly: every clear day becomes a sunset they keep, and their island grows at days 3, 7, 14, and 30. Not trophies, just proof of what they got through",
+    "slips: a slip is information, not a verdict. The day count restarts, but sunsets, gulls, and the island stay, and Dusk helps work out what led to it",
+    "talking: they can type, or just talk out loud when typing feels like too much",
     "care: Dusk is a coach, not a doctor, and will point them to a pharmacist or doctor for medicines or if things get hard",
-    "an invitation to pick the coach whose voice feels right to them, and begin",
+    "an invitation to pick the voice they want beside them on the hard nights, and begin",
 )
 
 val INTRO_FALLBACKS = listOf(
-    "Dusk learns how your day works and builds a routine around it. No judgment, ever.",
-    "Your routine puts small swaps right before your usual triggers, with gentle reminders along the way.",
-    "Cravings come in waves and usually pass within minutes. Ride one out with us, and a gull goes free in your sky.",
-    "Every clear day becomes a sunset you keep, and your island grows as you reach each milestone.",
-    "If you slip, your day count restarts, but your sunsets, gulls, and island all stay.",
-    "You can type, or just talk to me out loud whenever typing feels like too much.",
-    "I'm a coach, not a doctor. For medicines, or if things get hard, I'll point you to someone who can help.",
-    "Pick the voice that feels right to you, and let's begin.",
+    "I'll be straight with you. This is hard, and I won't pretend otherwise. After dusk comes the night. I'm here to help you get ready for it.",
+    "I learn how your day works, then put small swaps right before the moments you'd usually reach for it.",
+    "The first days are the loudest. Cravings come in waves and most pass within minutes. Ride one out and a gull goes free.",
+    "Then it gets quiet, and quiet is harder. Motivation fades and just one starts to sound reasonable. We prepare for that now.",
+    "Every clear day becomes a sunset you keep. Not a trophy. Proof of what you got through.",
+    "If you slip, it's information, not a verdict. Your count restarts. Everything you earned stays.",
+    "You can type, or just talk to me when typing feels like too much.",
+    "I'm a coach, not a doctor. For medicines, or if it gets too heavy, I'll point you to someone who can help.",
+    "Pick the voice you want beside you on the hard nights. Then let's begin.",
 )
 
 /** Session-wide progress through the introduction, shared by every preview. */
