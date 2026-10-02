@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@drawable/w_bg" android:clipToOutline="true">
+    <ImageView android:id="@+id/w_scene" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:scaleType="centerCrop" android:src="@drawable/w_scene_preview" android:contentDescription="@null" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:baselineAligned="true" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="4dp">
+        <TextView android:id="@+id/w_day" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="4" android:textSize="26sp" android:fontFamily="serif" android:textColor="@color/w_ink" />
+        <TextView android:id="@+id/w_sub" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="6dp" android:text="days · 5 gulls" android:textSize="11sp" android:textColor="@color/w_muted" />
+    </LinearLayout>
+    <TextView android:id="@+id/w_pill" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_margin="8dp" android:background="@drawable/w_pill" android:gravity="center" android:padding="7dp"
+        android:text="Craving? Ride it out" android:textSize="12sp" android:fontFamily="sans-serif-medium" android:textColor="@color/w_on_coral" />
+</LinearLayout>

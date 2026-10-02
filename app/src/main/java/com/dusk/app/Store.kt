@@ -61,6 +61,14 @@ fun parseTasks(json: String): List<Task> {
  */
 object Store {
     private lateinit var prefs: SharedPreferences
+    private var appCtx: Context? = null
+    /** Set when the widget's craving button is tapped. */
+    var pendingWidget by mutableStateOf<String?>(null)
+
+    /** Keeps home screen widgets in step with what just changed. */
+    private fun notifyWidgets() {
+        appCtx?.let { runCatching { Widgets.updateAll(it) } }
+    }
     private var loaded = false
 
     var apiKey by mutableStateOf("")
@@ -100,6 +108,7 @@ object Store {
     fun init(ctx: Context) {
         if (loaded) return
         prefs = ctx.applicationContext.getSharedPreferences("dusk", Context.MODE_PRIVATE)
+        appCtx = ctx.applicationContext
         // The coach always uses the built-in key and model; clear anything saved by older versions.
         prefs.edit().remove("key").remove("model").apply()
         apiKey = ""
@@ -170,6 +179,7 @@ object Store {
         prefs.edit().putString("flow", f).apply()
         loadFlow()
         Reminders.rescheduleAll(ctx)
+        notifyWidgets()
     }
 
     /** The person's own key if they set one in Settings, otherwise the key built into the app. */
@@ -211,6 +221,7 @@ object Store {
             startDay = day
             prefs.edit().putLong(k("start"), day).apply()
         }
+        notifyWidgets()
     }
 
     fun gulls(sub: String): Int {
@@ -251,6 +262,7 @@ object Store {
             a.put(JSONObject().put("t", it.start).put("s", it.sub).put("e", it.end).put("o", it.outcome))
         }
         prefs.edit().putString(k("cravings"), a.toString()).apply()
+        notifyWidgets()
     }
 
     private fun saveSlips() {
@@ -340,6 +352,7 @@ object Store {
         doneDay = today()
         val a = JSONArray(); done.forEach { a.put(it) }
         prefs.edit().putLong(k("doneDay"), doneDay).putString(k("done"), a.toString()).apply()
+        notifyWidgets()
     }
 
     fun startToday() {
@@ -365,6 +378,7 @@ object Store {
     fun markOnboarded() {
         onboarded = true
         prefs.edit().putBoolean(k("onboarded"), true).apply()
+        notifyWidgets()
     }
 
     fun redoOnboarding() {

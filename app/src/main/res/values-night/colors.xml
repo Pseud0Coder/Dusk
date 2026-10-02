@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="w_bg">#1C2C46</color>
+    <color name="w_ink">#F4EBE1</color>
+    <color name="w_muted">#C3CCD6</color>
+    <color name="w_coral">#FF9F80</color>
+    <color name="w_on_coral">#3A140A</color>
+    <color name="w_teal">#8ED1C9</color>
+    <color name="w_chip">#CC263A57</color>
+    <color name="w_divider">#34486A</color>
+    <color name="w_track">#34486A</color>
+    <color name="kind_body_bg">#5A3420</color>
+    <color name="kind_body_fg">#FFD9C0</color>
+    <color name="kind_mind_bg">#23405E</color>
+    <color name="kind_mind_fg">#D6E6F5</color>
+    <color name="kind_food_bg">#1F4A44</color>
+    <color name="kind_food_fg">#CDEDE6</color>
+    <color name="kind_sleep_bg">#2A3460</color>
+    <color name="kind_sleep_fg">#D6DEF7</color>
+    <color name="kind_social_bg">#5A2A24</color>
+    <color name="kind_social_fg">#F9D3CB</color>
+    <color name="kind_other_bg">#33404F</color>
+    <color name="kind_other_fg">#E6E0D8</color>
+</resources>

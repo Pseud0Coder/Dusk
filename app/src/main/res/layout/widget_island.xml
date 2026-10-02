@@ -1,0 +1,37 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/w_bg" android:clipToOutline="true">
+    <ImageView android:id="@+id/w_scene" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="centerCrop" android:src="@drawable/w_scene_preview" android:contentDescription="@null" />
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|start"
+        android:orientation="vertical" android:padding="12dp">
+        <TextView android:id="@+id/w_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Cigarettes · day" android:textSize="11sp" android:textColor="@color/w_ink" />
+        <TextView android:id="@+id/w_day" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="4" android:textSize="40sp" android:fontFamily="serif" android:textColor="@color/w_ink" />
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Clear for " android:textSize="11sp" android:textColor="@color/w_ink" />
+            <TextView android:id="@+id/w_days" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginEnd="3dp" android:text="3d" android:textSize="11sp" android:textColor="@color/w_ink" />
+            <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="@color/w_ink" />
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/w_pill" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="top|end" android:layout_margin="12dp" android:background="@drawable/w_pill"
+        android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="6dp" android:paddingBottom="6dp"
+        android:text="Ride it out" android:textSize="11sp" android:fontFamily="sans-serif-medium" android:textColor="@color/w_on_coral" />
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|start"
+        android:orientation="horizontal" android:layout_margin="10dp">
+        <TextView android:id="@+id/w_chip1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:background="@drawable/w_chip" android:paddingStart="9dp" android:paddingEnd="9dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+            android:text="5 gulls" android:textSize="11sp" android:textColor="@color/w_ink" />
+        <TextView android:id="@+id/w_chip2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp"
+            android:background="@drawable/w_chip" android:paddingStart="9dp" android:paddingEnd="9dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+            android:text="3 sunsets" android:textSize="11sp" android:textColor="@color/w_ink" />
+        <TextView android:id="@+id/w_chip3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp"
+            android:background="@drawable/w_chip" android:paddingStart="9dp" android:paddingEnd="9dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+            android:text="83% passed" android:textSize="11sp" android:textColor="@color/w_ink" />
+    </LinearLayout>
+</FrameLayout>

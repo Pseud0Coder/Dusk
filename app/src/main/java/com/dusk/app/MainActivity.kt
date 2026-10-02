@@ -64,6 +64,10 @@ class MainActivity : ComponentActivity() {
 
     /** Opened from a check-in notification: remember what the person tapped. */
     private fun handleCheckin(i: Intent?) {
+        i?.getStringExtra("widget")?.let {
+            Store.pendingWidget = it
+            i.removeExtra("widget")
+        }
         val mode = i?.getStringExtra("checkin") ?: return
         Store.pendingQuestion = i.getStringExtra("question") ?: ""
         Store.pendingCheckin = mode
@@ -110,6 +114,15 @@ fun App() {
                 busy = false
             }
         }
+    }
+
+    LaunchedEffect(Store.pendingWidget, Store.onboarded) {
+        if (!Store.onboarded || Store.pendingWidget != "craving") return@LaunchedEffect
+        Store.pendingWidget = null
+        voiceOpening = null
+        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
+        screen = Screen.Coach
+        send("I'm having a craving right now.")
     }
 
     LaunchedEffect(Store.pendingCheckin, Store.onboarded) {

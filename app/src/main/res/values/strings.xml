@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="w_day">Dusk · Day</string>
+    <string name="w_day_desc">Your day count over the sunset.</string>
+    <string name="w_clear">Dusk · Clear for</string>
+    <string name="w_clear_desc">Live time since you quit.</string>
+    <string name="w_craving">Dusk · Craving</string>
+    <string name="w_craving_desc">Day count and a one-tap craving button.</string>
+    <string name="w_strip">Dusk · Status</string>
+    <string name="w_strip_desc">Time clear, gulls set free, and your next likely craving.</string>
+    <string name="w_island">Dusk · Island</string>
+    <string name="w_island_desc">Your sky, gulls and island, with your numbers.</string>
+    <string name="w_today">Dusk · Today</string>
+    <string name="w_today_desc">Check off your routine from the home screen.</string>
+</resources>

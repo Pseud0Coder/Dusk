@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="icon_bg">#FF9F80</color>
+    <color name="w_bg">#F8DCC4</color>
+    <color name="w_ink">#1F3A4D</color>
+    <color name="w_muted">#4A6272</color>
+    <color name="w_coral">#F0765A</color>
+    <color name="w_on_coral">#3A140A</color>
+    <color name="w_teal">#2F7F86</color>
+    <color name="w_chip">#E6FFF6EC</color>
+    <color name="w_divider">#E3C7AE</color>
+    <color name="w_track">#E9CDB4</color>
+    <color name="kind_body_bg">#FFE6CF</color>
+    <color name="kind_body_fg">#6A3510</color>
+    <color name="kind_mind_bg">#D9E8F5</color>
+    <color name="kind_mind_fg">#24486B</color>
+    <color name="kind_food_bg">#D6EEEA</color>
+    <color name="kind_food_fg">#1F4E47</color>
+    <color name="kind_sleep_bg">#DDE1F2</color>
+    <color name="kind_sleep_fg">#2A3566</color>
+    <color name="kind_social_bg">#FBDCD5</color>
+    <color name="kind_social_fg">#7A2E22</color>
+    <color name="kind_other_bg">#F3E7DA</color>
+    <color name="kind_other_fg">#4A4038</color>
 </resources>
