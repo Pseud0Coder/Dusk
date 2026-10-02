@@ -21,7 +21,7 @@ android {
         buildConfigField("String", "INWORLD_KEY", "\"${secret("INWORLD_KEY")}\"")
         buildConfigField("String", "INWORLD_MODEL", "\"${secret("INWORLD_MODEL", "inworld-tts-2")}\"")
         buildConfigField("String", "FISH_KEY", "\"${secret("FISH_KEY")}\"")
-        buildConfigField("String", "FISH_MODEL", "\"${secret("FISH_MODEL", "s2.1-pro")}\"")
+        buildConfigField("String", "FISH_MODEL", "\"${secret("FISH_MODEL", "s2.1-pro-free")}\"")
     }
     buildTypes {
         release {

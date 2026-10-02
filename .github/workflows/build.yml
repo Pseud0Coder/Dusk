@@ -45,7 +45,7 @@ jobs:
           FISH_KEY: ${{ secrets.FISH_KEY }}
           FISH_MODEL: ${{ secrets.FISH_MODEL }}
         run: |
-          IM="${INWORLD_MODEL:-inworld-tts-2}"; FM="${FISH_MODEL:-s2.1-pro}"; out=""
+          IM="${INWORLD_MODEL:-inworld-tts-2}"; FM="${FISH_MODEL:-s2.1-pro-free}"; out=""
           for v in Kelsey Jonah Priya Dennis; do
             code=$(curl -s -o /tmp/iw.json -w "%{http_code}" -X POST https://api.inworld.ai/tts/v1/voice \
               -H "Authorization: Basic $INWORLD_KEY" -H "Content-Type: application/json" \

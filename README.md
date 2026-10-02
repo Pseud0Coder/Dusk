@@ -16,7 +16,7 @@ Add these in the repo under Settings > Secrets and variables > Actions > New rep
 | --- | --- |
 | `OPENROUTER_KEY` | Powers the coach. With it set, people never see a key screen. |
 | `INWORLD_KEY` | Voices for the Inworld coaches (Kelsey, Jonah, Priya, Dennis). Basic auth key from the Inworld portal. `INWORLD_MODEL` optional (default `inworld-tts-2`). |
-| `FISH_KEY` | Voices for the Fish Audio coaches (Sarah, Adrian, Nova). `FISH_MODEL` optional (default `s2.1-pro`). |
+| `FISH_KEY` | Voices for the Fish Audio coaches (Sarah, Adrian, Nova). `FISH_MODEL` optional (default `s2.1-pro-free`, the free fair-use tier; set `s2.1-pro` once the account has API credit). |
 
 Coaches: pick a persona in setup or Settings. Each has a personality the coach takes on and a voice from Inworld or Fish Audio. Without that provider's key, the persona still works with the phone's built-in voice.
 
