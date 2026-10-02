@@ -62,6 +62,11 @@ jobs:
             if [ "$code" != "200" ]; then out="$out ($(head -c 160 /tmp/fa.bin | tr -d '\n\"'))"; fi
             out="$out;"
           done
+          code=$(curl -s -o /tmp/ff.bin -w "%{http_code}" -X POST https://api.fish.audio/v1/tts \
+            -H "Authorization: Bearer $FISH_KEY" -H "Content-Type: application/json" -H "model: s2.1-pro-free" \
+            -d "{\"text\":\"Hi.\",\"reference_id\":\"933563129e564b19a115bedd57b7406a\",\"format\":\"mp3\"}")
+          out="$out Fish free-model Sarah=$code"
+          if [ "$code" != "200" ]; then out="$out ($(head -c 160 /tmp/ff.bin | tr -d '\n\"'))"; fi
           echo "::notice title=Voice check::$out"
       - uses: actions/upload-artifact@v4
         with:
