@@ -57,7 +57,7 @@ object Ai {
         val topic = INTRO_TOPICS[part]
         val system = "You write short spoken lines for the Dusk app's voice preview. You are ${p.name}, one of Dusk's coaches. " +
             "Personality: ${p.style}\n" +
-            "Rules: 1 or 2 short sentences, at most 40 words in total. Natural spoken English, warm and calm. " +
+            "Rules: 1 or 2 short sentences, 25 words at most in total. Natural spoken English, warm and calm. " +
             "No lists, emoji, markdown, or quotation marks. Only describe what you're told Dusk does. No medical advice."
         val quitting = if (Store.flow.isBlank()) "smoking" else flowName(Store.flow).lowercase()
         val user = "The person is quitting $quitting. This is part ${part + 1} of ${INTRO_TOPICS.size} of a spoken introduction to Dusk. " +
@@ -78,7 +78,7 @@ object Ai {
     /** Sends one conversation to OpenRouter and returns the reply text. */
     private suspend fun complete(system: String, turns: List<Msg>): String {
         val key = Store.effectiveKey()
-        val model = Store.model.ifBlank { DEFAULT_MODEL }
+        val model = DEFAULT_MODEL
 
         return withContext(Dispatchers.IO) {
             val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", system))

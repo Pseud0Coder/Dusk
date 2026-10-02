@@ -214,8 +214,10 @@ class Speaker(context: Context) {
         }
     }
 
+    /** Stops whatever is playing right now: a cloud voice or the phone's voice. */
     fun stop() {
         runCatching { tts?.stop() }
+        runCatching { player?.stop() }
     }
 
     fun shutdown() {
@@ -292,7 +294,11 @@ class Listener(context: Context) {
 
 // ---------- Screen ----------
 
-enum class VoiceState { Idle, Speaking, Listening, Thinking }
+enum class VoiceState { Idle, Speaking, Paused, Listening, Thinking }
+
+/** Splits a reply into sentences so speech can stop and resume at clean points. */
+fun sentences(text: String): List<String> =
+    text.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotBlank() }
 
 /**
  * A hands-free conversation with the coach. Dusk speaks, then listens, then replies.
@@ -331,17 +337,34 @@ fun VoiceScreen(
         }
     }
 
-    fun startTurn(say: String?) {
+    // Speech is split into sentences, so Pause stops right away and Resume picks up
+    // from the sentence that was cut off.
+    var remaining by remember { mutableStateOf<List<String>>(emptyList()) }
+    var routineAfter by remember { mutableStateOf(false) }
+
+    suspend fun speakRemaining() {
+        while (remaining.isNotEmpty()) {
+            state = VoiceState.Speaking
+            speaker.speak(remaining.first())
+            remaining = remaining.drop(1)
+        }
+    }
+
+    fun startTurn(say: String?, resume: Boolean = false) {
         job?.cancel()
+        speaker.stop()
         job = scope.launch {
-            var line = say
             hint = null
+            if (resume) {
+                speakRemaining()
+                if (routineAfter) { onRoutine?.invoke(); return@launch }
+            } else if (say != null) {
+                routineAfter = false
+                coachLine = say
+                remaining = sentences(say)
+                speakRemaining()
+            }
             while (isActive) {
-                if (line != null) {
-                    state = VoiceState.Speaking
-                    coachLine = line
-                    speaker.speak(line)
-                }
                 state = VoiceState.Listening
                 heard = ""
                 val h = listener.listen(onPartial = { heard = it }, onLevel = { level = it })
@@ -368,21 +391,26 @@ fun VoiceScreen(
                     return@launch
                 }
                 Store.addMessage(Msg("assistant", reply))
-                line = Ai.display(reply).ifBlank { "Here's your plan." }
-                if (onRoutine != null && Ai.routineIn(reply) != null) {
-                    state = VoiceState.Speaking
-                    coachLine = line
-                    speaker.speak(line)
-                    onRoutine()
-                    return@launch
-                }
+                val line = Ai.display(reply).ifBlank { "Here's your plan." }
+                routineAfter = onRoutine != null && Ai.routineIn(reply) != null
+                coachLine = line
+                remaining = sentences(line)
+                speakRemaining()
+                if (routineAfter) { onRoutine?.invoke(); return@launch }
             }
         }
     }
 
+    /** Stops the voice mid-sentence and waits. Nothing is lost. */
+    fun pause() {
+        job?.cancel()
+        speaker.stop()
+        state = VoiceState.Paused
+    }
+
     fun tapOrb() {
         when (state) {
-            VoiceState.Speaking -> { speaker.stop(); startTurn(null) }
+            VoiceState.Speaking, VoiceState.Paused -> { remaining = emptyList(); routineAfter = false; startTurn(null) }
             VoiceState.Listening -> listener.stopListening()
             VoiceState.Idle -> startTurn(null)
             VoiceState.Thinking -> {}
@@ -411,7 +439,7 @@ fun VoiceScreen(
         label = "breatheScale"
     )
     val listenScale by animateFloatAsState(1f + level * 0.2f, label = "listenScale")
-    val scale = if (Store.reduceMotion) 1f else when (state) {
+    val scale = if (Store.reduceMotion || state == VoiceState.Paused) 1f else when (state) {
         VoiceState.Listening -> listenScale
         VoiceState.Thinking -> 0.95f
         else -> breathe
@@ -419,6 +447,7 @@ fun VoiceScreen(
     val persona = personaById(Store.persona)
     val status = when (state) {
         VoiceState.Idle -> "Tap the circle to talk"
+        VoiceState.Paused -> "Paused. Resume, or tap the circle to talk."
         VoiceState.Speaking -> "${persona.name} is talking. Tap to jump in."
         VoiceState.Listening -> "Listening. Tap when you're done."
         VoiceState.Thinking -> "Thinking…"
@@ -505,6 +534,18 @@ fun VoiceScreen(
             }
         }
         Spacer(Modifier.height(20.dp))
+        if (state == VoiceState.Speaking || state == VoiceState.Paused) {
+            val speaking = state == VoiceState.Speaking
+            Button(
+                onClick = { if (speaking) pause() else startTurn(null, resume = true) },
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                TIcon(if (speaking) R.drawable.ic_t_player_pause else R.drawable.ic_t_player_play, size = 20.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(if (speaking) "Pause" else "Resume")
+            }
+            Spacer(Modifier.height(10.dp))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { leave(onType) }, modifier = Modifier.weight(1f).height(48.dp)) {
                 TIcon(R.drawable.ic_t_keyboard, size = 18.dp)

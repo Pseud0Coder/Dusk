@@ -212,7 +212,6 @@ fun Onboarding(onDone: () -> Unit) {
         mutableStateOf(
             when {
                 Store.flow.isEmpty() -> "pick"
-                Store.effectiveKey().isBlank() -> "key"
                 else -> "mode"
             }
         )
@@ -224,9 +223,8 @@ fun Onboarding(onDone: () -> Unit) {
     when (step) {
         "pick" -> PickStep { f ->
             Store.setFlow(ctx, f)
-            step = if (Store.effectiveKey().isBlank()) "key" else "mode"
+            step = "mode"
         }
-        "key" -> KeyStep { step = "mode" }
         "mode" -> ModeStep(onTalk = { step = "persona" }, onTap = { step = "intake" })
         "persona" -> PersonaStep { step = "voice" }
         "voice" -> VoiceScreen(
@@ -330,56 +328,6 @@ private fun PersonaStep(onNext: () -> Unit) {
             Spacer(Modifier.width(10.dp))
             Text("Start talking with ${personaById(Store.persona).name}")
         }
-    }
-}
-
-@Composable
-private fun KeyStep(onNext: () -> Unit) {
-    val c = MaterialTheme.colorScheme
-    val uri = LocalUriHandler.current
-    val scope = rememberCoroutineScope()
-    var key by rememberSaveable { mutableStateOf(Store.apiKey) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    Frame {
-        Spacer(Modifier.height(24.dp))
-        Heading("Connect your coach")
-        Muted("Dusk's coach runs on OpenRouter. Paste a key from your OpenRouter account. It stays on this phone and goes only to OpenRouter.")
-        TextButton(onClick = { uri.openUri("https://openrouter.ai/keys") }, contentPadding = PaddingValues(0.dp)) {
-            Text("Get a key")
-        }
-        OutlinedTextField(
-            value = key,
-            onValueChange = { key = it; error = null },
-            label = { Text("OpenRouter API key") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        error?.let { Text(it, color = c.error) }
-        Button(
-            onClick = {
-                if (key.isBlank()) {
-                    error = "Paste your key first."
-                } else if (!busy) {
-                    busy = true
-                    error = null
-                    scope.launch {
-                        val problem = Ai.checkKey(key)
-                        busy = false
-                        if (problem == null) {
-                            Store.apiKey = key.trim()
-                            Store.saveSettings()
-                            onNext()
-                        } else {
-                            error = problem
-                        }
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) { Text(if (busy) "Testing…" else "Test key and continue") }
     }
 }
 

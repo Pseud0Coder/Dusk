@@ -95,8 +95,10 @@ object Store {
     fun init(ctx: Context) {
         if (loaded) return
         prefs = ctx.applicationContext.getSharedPreferences("dusk", Context.MODE_PRIVATE)
-        apiKey = prefs.getString("key", "") ?: ""
-        model = prefs.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL
+        // The coach always uses the built-in key and model; clear anything saved by older versions.
+        prefs.edit().remove("key").remove("model").apply()
+        apiKey = ""
+        model = DEFAULT_MODEL
         flow = prefs.getString("flow", "") ?: ""
         tipsSeen = prefs.getBoolean("tips_seen", false)
         reduceMotion = prefs.getBoolean("reduce_motion", false)
@@ -153,7 +155,7 @@ object Store {
     }
 
     /** The person's own key if they set one in Settings, otherwise the key built into the app. */
-    fun effectiveKey(): String = apiKey.trim().ifEmpty { BuildConfig.OPENROUTER_KEY }
+    fun effectiveKey(): String = BuildConfig.OPENROUTER_KEY
 
     fun today(): Long = LocalDate.now().toEpochDay()
     /** Days since the first quit day (day 1 = the quit day). 0 if not started. */

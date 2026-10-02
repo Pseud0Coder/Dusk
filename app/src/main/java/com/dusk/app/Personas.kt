@@ -136,7 +136,7 @@ fun PersonaCard(
             }
             Text(p.vibe, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onPreview, contentPadding = PaddingValues(0.dp)) {
-                TIcon(R.drawable.ic_t_sparkles, size = 16.dp)
+                TIcon(if (previewing) R.drawable.ic_t_player_stop else R.drawable.ic_t_sparkles, size = 16.dp)
                 Spacer(Modifier.width(6.dp))
                 Text(if (previewing) previewLabel else "Hear ${p.name}")
             }
@@ -213,15 +213,21 @@ fun PersonaPicker() {
     val speaker = remember { Speaker(ctx) }
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
     var busyId by remember { mutableStateOf<String?>(null) }
+    var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var writing by remember { mutableStateOf(false) }
     var caption by remember { mutableStateOf<Triple<Persona, Int, String>?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PersonaGrid(busyId, if (writing) "Getting ready…" else "Speaking…") { p ->
-            if (busyId == null) {
+        PersonaGrid(busyId, "Stop") { p ->
+            val wasMe = busyId == p.id
+            job?.cancel()
+            speaker.stop()
+            busyId = null
+            writing = false
+            if (!wasMe) {
                 busyId = p.id
                 writing = true
-                scope.launch {
+                job = scope.launch {
                     val part = Intro.next % INTRO_TOPICS.size
                     val line = Ai.introLine(p, part, Intro.spoken.takeLast(2))
                     Intro.spoken.add(line)

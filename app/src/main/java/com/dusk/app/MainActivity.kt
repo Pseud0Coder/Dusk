@@ -94,8 +94,7 @@ fun App() {
         val t = text.trim()
         if (t.isEmpty() || busy) return
         if (Store.effectiveKey().isBlank()) {
-            screen = Screen.Setup
-            Toast.makeText(ctx, "Add your OpenRouter key first.", Toast.LENGTH_SHORT).show()
+            error = "The coach isn't available in this version of the app."
             return
         }
         Store.addMessage(Msg("user", t))
@@ -843,8 +842,6 @@ fun SettingsScreen() {
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
-    var key by rememberSaveable { mutableStateOf(Store.apiKey) }
-    var model by rememberSaveable { mutableStateOf(Store.model) }
     var confirmClear by remember { mutableStateOf(false) }
 
     Column(
@@ -950,36 +947,6 @@ fun SettingsScreen() {
         IconAction(R.drawable.ic_t_refresh, "Redo setup questions") { Store.redoOnboarding() }
         IconAction(R.drawable.ic_t_trash, "Clear chat") { confirmClear = true }
 
-        HorizontalDivider(color = c.outlineVariant)
-
-        // Coach
-        SectionTitle(R.drawable.ic_t_key, "Coach")
-        OutlinedTextField(
-            value = key, onValueChange = { key = it },
-            label = { Text("Your own OpenRouter key (optional)") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = model, onValueChange = { model = it },
-            label = { Text("Model") },
-            leadingIcon = { TIcon(R.drawable.ic_t_cpu, size = 20.dp) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            if (BuildConfig.OPENROUTER_KEY.isNotBlank()) "Leave the key empty to use the one built into the app."
-            else "No key is built into this version, so add yours here.",
-            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-        )
-        Button(onClick = {
-            Store.apiKey = key.trim()
-            Store.model = model.trim().ifBlank { DEFAULT_MODEL }
-            model = Store.model
-            Store.saveSettings()
-            Toast.makeText(ctx, "Saved", Toast.LENGTH_SHORT).show()
-        }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
     }
 
     if (confirmClear) {
