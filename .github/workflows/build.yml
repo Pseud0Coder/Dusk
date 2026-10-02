@@ -35,6 +35,34 @@ jobs:
           fi
           exit $code
       - run: cp app/build/outputs/apk/debug/app-debug.apk Dusk.apk
+      - name: Check coach voices
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          INWORLD_KEY: ${{ secrets.INWORLD_KEY }}
+          INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}
+          FISH_KEY: ${{ secrets.FISH_KEY }}
+          FISH_MODEL: ${{ secrets.FISH_MODEL }}
+        run: |
+          IM="${INWORLD_MODEL:-inworld-tts-2}"; FM="${FISH_MODEL:-s2.1-pro}"; out=""
+          for v in Kelsey Jonah Priya Dennis; do
+            code=$(curl -s -o /tmp/iw.json -w "%{http_code}" -X POST https://api.inworld.ai/tts/v1/voice \
+              -H "Authorization: Basic $INWORLD_KEY" -H "Content-Type: application/json" \
+              -d "{\"text\":\"Hi.\",\"voiceId\":\"$v\",\"modelId\":\"$IM\"}")
+            out="$out Inworld $v=$code"
+            if [ "$code" != "200" ]; then out="$out ($(head -c 160 /tmp/iw.json | tr -d '\n\"'))"; fi
+            out="$out;"
+          done
+          for v in Sarah:933563129e564b19a115bedd57b7406a Adrian:bf322df2096a46f18c579d0baa36f41d Nova:b545c585f631496c914815291da4e893; do
+            code=$(curl -s -o /tmp/fa.bin -w "%{http_code}" -X POST https://api.fish.audio/v1/tts \
+              -H "Authorization: Bearer $FISH_KEY" -H "Content-Type: application/json" -H "model: $FM" \
+              -d "{\"text\":\"Hi.\",\"reference_id\":\"${v#*:}\",\"format\":\"mp3\"}")
+            out="$out Fish ${v%%:*}=$code"
+            if [ "$code" != "200" ]; then out="$out ($(head -c 160 /tmp/fa.bin | tr -d '\n\"'))"; fi
+            out="$out;"
+          done
+          echo "::notice title=Voice check::$out"
       - uses: actions/upload-artifact@v4
         with:
           name: Dusk-apk
