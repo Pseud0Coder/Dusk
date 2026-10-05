@@ -38,3 +38,29 @@ During setup you can choose "Talk it through" instead of tapping through questio
 3. Coach: answer its questions. When it proposes a routine, tap "Use this routine". Each item becomes a daily reminder with a Done button.
 
 Reminders survive reboots. If your phone kills them, set Dusk's battery usage to Unrestricted (Settings > Apps > Dusk > Battery).
+
+## Publishing to Google Play
+The public APK above is for sideloading and is signed with a debug key. Google Play needs a bundle (`.aab`) signed with your own **upload key**. CI builds it for you once the secrets below exist.
+
+**1. Make the upload key (once, on your own computer).** Keep the file and its passwords somewhere safe. Never commit them. Play also keeps its own app-signing key, so a lost upload key can be reset, but it takes a support request.
+```bash
+keytool -genkeypair -v -keystore dusk-upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 dusk-upload.jks        # macOS: base64 -i dusk-upload.jks
+```
+
+**2. Add four more GitHub secrets** (Settings > Secrets and variables > Actions):
+
+| Secret | Value |
+| --- | --- |
+| `DUSK_KEYSTORE_B64` | the base64 text from the command above |
+| `DUSK_KEYSTORE_PASSWORD` | the keystore password you typed |
+| `DUSK_KEY_ALIAS` | `upload` |
+| `DUSK_KEY_PASSWORD` | the key password you typed |
+
+**3. Build the bundle.** Run the *Build APK* workflow (Actions > Build APK > Run workflow). Download **Dusk-aab** from the run's artifacts. Branch builds only produce artifacts. Only `main` updates the public "latest" release. Every build gets a new `versionCode` from the run number, which Play requires.
+
+**4. Upload to an internal test track.** Play Console > Create app > Testing > Internal testing > Create new release > upload `Dusk.aab`. Accept Play App Signing when asked. Add testers by email, then open the opt-in link on their phones. Testers who sideloaded the APK must uninstall it first, because the two builds are signed with different keys.
+
+**5. Fill in App content** before a public release: privacy policy URL, Data safety, content rating, target audience, the Health apps declaration, and the exact-alarm permission declaration.
+
+The app targets Android 16 (API 36).

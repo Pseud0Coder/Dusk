@@ -7,6 +7,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Base64 of the Play upload keystore. Without it the .aab step is skipped (see README, "Publishing to Google Play").
+      DUSK_KEYSTORE_B64: ${{ secrets.DUSK_KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -35,6 +38,24 @@ jobs:
           fi
           exit $code
       - run: cp app/build/outputs/apk/debug/app-debug.apk Dusk.apk
+      - name: Build signed Play bundle (.aab)
+        if: env.DUSK_KEYSTORE_B64 != ''
+        shell: bash
+        env:
+          DUSK_KEYSTORE_PASSWORD: ${{ secrets.DUSK_KEYSTORE_PASSWORD }}
+          DUSK_KEY_ALIAS: ${{ secrets.DUSK_KEY_ALIAS }}
+          DUSK_KEY_PASSWORD: ${{ secrets.DUSK_KEY_PASSWORD }}
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          INWORLD_KEY: ${{ secrets.INWORLD_KEY }}
+          INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}
+          FISH_KEY: ${{ secrets.FISH_KEY }}
+          FISH_MODEL: ${{ secrets.FISH_MODEL }}
+        run: |
+          echo "$DUSK_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export DUSK_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          ./gradlew bundleRelease --console=plain
+          cp app/build/outputs/bundle/release/app-release.aab Dusk.aab
+          rm -f "$RUNNER_TEMP/upload.jks"
       - name: Check coach voices
         if: always()
         continue-on-error: true
@@ -88,7 +109,15 @@ jobs:
         with:
           name: Dusk-apk
           path: Dusk.apk
-      - uses: softprops/action-gh-release@v2
+      - name: Keep the signed bundle for Play upload
+        if: env.DUSK_KEYSTORE_B64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dusk-aab
+          path: Dusk.aab
+      # Only main publishes the public "latest" download; other branches just build.
+      - if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Dusk build ${{ github.run_number }}

@@ -4,3 +4,8 @@ local.properties
 .idea/
 *.iml
 app/libs/
+
+# Signing keys: never commit these.
+*.jks
+*.keystore
+keystore.properties

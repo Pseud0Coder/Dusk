@@ -10,12 +10,13 @@ fun secret(name: String, fallback: String = ""): String =
 
 android {
     namespace = "com.dusk.app"
-    compileSdk = 34
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.dusk.app"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
+        targetSdk = 36
+        // Play rejects an upload whose versionCode isn't higher than the last one, so CI numbers every build.
+        versionCode = secret("GITHUB_RUN_NUMBER", "1").toIntOrNull() ?: 1
         versionName = "1.0"
         buildConfigField("String", "OPENROUTER_KEY", "\"${secret("OPENROUTER_KEY")}\"")
         buildConfigField("String", "INWORLD_KEY", "\"${secret("INWORLD_KEY")}\"")
@@ -23,10 +24,24 @@ android {
         buildConfigField("String", "FISH_KEY", "\"${secret("FISH_KEY")}\"")
         buildConfigField("String", "FISH_MODEL", "\"${secret("FISH_MODEL", "s2.1-pro-free")}\"")
     }
+    signingConfigs {
+        // Google Play upload key. Defined only when the environment supplies it (see README, "Publishing to Google Play").
+        val uploadKeystore = secret("DUSK_KEYSTORE_FILE")
+        if (uploadKeystore.isNotEmpty()) {
+            create("upload") {
+                storeFile = file(uploadKeystore)
+                storePassword = secret("DUSK_KEYSTORE_PASSWORD")
+                keyAlias = secret("DUSK_KEY_ALIAS")
+                keyPassword = secret("DUSK_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            // No fallback to the debug key: Play rejects debug-signed bundles, so without the upload key
+            // the release build comes out unsigned instead of looking valid.
+            signingConfig = signingConfigs.findByName("upload")
         }
     }
     compileOptions {
