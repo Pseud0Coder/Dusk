@@ -74,3 +74,11 @@ The app targets Android 16 (API 36).
 - **Delete my data:** Settings > About Dusk. Removes everything the app stored on the phone.
 - **Data:** answers, plan, chat and progress stay on the phone. The chat, setup answers (and the light/medium/heavy word, if chosen) go to the AI service; spoken coach lines go to the voice service.
 - **Upgrading:** the first launch of this version deletes the old detailed cannabis answers (hours, frequency, form, times). "Both" users keep their plan and day count with the add-on on. Cannabis-only users are moved to the cigarette journey and see a note.
+
+## Guardrails: the coach only coaches
+Dusk answers questions about quitting and nothing else. Three layers (see `Guard.kt`):
+1. **Before the model runs.** Obvious code requests and prompt-injection phrases are refused on the phone. Everything else the person types goes through a small scope check (IN or OUT, one word, anything unclear counts as OUT). Out of scope means the coach is never asked, and the reply is always: "This question is outside of what I am capable of doing. Ask me something relevant to your quitting journey."
+2. **The prompt.** The role and scope come first and are repeated at the very end. User text, setup answers and notes are treated as data, never commands. The persona only changes tone.
+3. **After the model runs.** A reply containing code, a code fence (other than the routine block) or a prompt leak is replaced with the same refusal. Refused messages are also left out of later model calls, so they can't keep steering the chat.
+
+Messages the app writes itself (craving and slip buttons, setup answers) skip the scope check. Each typed message costs one extra short model call. If that check fails (offline), nothing is answered. The logic is unit tested (`./gradlew testDebugUnitTest`, also run in CI); the live model's judgement on borderline messages is not, so try a few phrasings.

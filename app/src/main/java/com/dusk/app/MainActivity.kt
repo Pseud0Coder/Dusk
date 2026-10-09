@@ -95,14 +95,14 @@ fun App() {
     var voiceOpening by rememberSaveable { mutableStateOf<String?>(null) }
     var quickCheckin by remember { mutableStateOf(false) }
 
-    fun send(text: String) {
+    fun send(text: String, trusted: Boolean = false) {
         val t = text.trim()
         if (t.isEmpty() || busy) return
         if (Store.effectiveKey().isBlank()) {
             error = "The coach isn't available in this version of the app."
             return
         }
-        Store.addMessage(Msg("user", t))
+        Store.addMessage(Msg("user", t, trusted))
         busy = true
         error = null
         scope.launch {
@@ -122,7 +122,7 @@ fun App() {
         voiceOpening = null
         Store.startCraving(FLOW_CIGARETTE)
         screen = Screen.Coach
-        send("I'm having a craving right now.")
+        send("I'm having a craving right now.", trusted = true)
     }
 
     LaunchedEffect(Store.pendingCheckin, Store.onboarded) {
@@ -195,7 +195,7 @@ fun App() {
                     onCraving = { sub ->
                         Store.startCraving(sub)
                         screen = Screen.Coach
-                        send("I'm having a ${cravingWord(sub)} craving right now.")
+                        send("I'm having a ${cravingWord(sub)} craving right now.", trusted = true)
                     },
                     onTalk = {
                         Store.startCraving(FLOW_CIGARETTE)
@@ -206,7 +206,7 @@ fun App() {
                     onSlipped = { sub ->
                         Store.recordSlip(sub)
                         screen = Screen.Coach
-                        send("I slipped with ${flowName(sub).lowercase()} today.")
+                        send("I slipped with ${flowName(sub).lowercase()} today.", trusted = true)
                     }
                 )
                 Screen.Coach -> CoachScreen(
@@ -214,7 +214,7 @@ fun App() {
                     onVoice = { voiceOpening = CHAT_OPENING },
                     onGaveIn = { sub ->
                         Store.recordSlip(sub)
-                        send("I gave in to a ${cravingWord(sub)} craving.")
+                        send("I gave in to a ${cravingWord(sub)} craving.", trusted = true)
                     }
                 ) { send(it) }
                 Screen.Progress -> ProgressScreen()
@@ -243,7 +243,7 @@ fun App() {
                         quickCheckin = false
                         Store.logCheckin("Struggling")
                         screen = Screen.Coach
-                        send("It's hard today.")
+                        send("It's hard today.", trusted = true)
                     }, modifier = Modifier.fillMaxWidth()) {
                         TIcon(R.drawable.ic_t_wave_sine, size = 18.dp); Spacer(Modifier.width(8.dp)); Text("It's hard today")
                     }
@@ -252,7 +252,7 @@ fun App() {
                         Store.logCheckin("Craving")
                         Store.startCraving(FLOW_CIGARETTE)
                         screen = Screen.Coach
-                        send("I'm having a craving right now.")
+                        send("I'm having a craving right now.", trusted = true)
                     }, modifier = Modifier.fillMaxWidth()) {
                         TIcon(R.drawable.ic_t_ripple, size = 18.dp); Spacer(Modifier.width(8.dp)); Text("Craving right now")
                     }

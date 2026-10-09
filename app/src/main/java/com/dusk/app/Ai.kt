@@ -42,10 +42,20 @@ object Ai {
 
     /** Sends the conversation to OpenRouter and returns the assistant reply. Call from the main thread. */
     suspend fun reply(voiceOpening: String? = null): String {
+        // Layer 1: is the person's last message something the quit coach should answer at all?
+        val last = Store.messages.lastOrNull()
+        if (last != null && last.role == "user" && !last.trusted) {
+            val coach = display(Store.messages.lastOrNull { it.role == "assistant" && it.content != Guard.REFUSAL }?.content ?: "")
+            val ok = Guard.inScope(last.content, coach) { system, user -> complete(system, listOf(Msg("user", user)), fast = true) }
+            if (!ok) return Guard.REFUSAL
+        }
         val voice = if (voiceOpening == null) "" else
             VOICE_MODE + "\nThis voice session opened with you saying: \"$voiceOpening\""
-        val system = promptFor(Store.cannabisLevel) + personaById(Store.persona).promptBlock() + voice + context()
-        return complete(system, Store.messages.takeLast(40).toList(), fast = voiceOpening != null)
+        // Layer 2: the role is stated first, and again after the context.
+        val system = promptFor(Store.cannabisLevel) + personaById(Store.persona).promptBlock() + voice + context() + Guard.TAIL
+        val raw = complete(system, Guard.historyForModel(Store.messages), fast = voiceOpening != null)
+        // Layer 3: code, code fences and prompt leaks never reach the screen.
+        return Guard.checkReply(raw)
     }
 
     /**

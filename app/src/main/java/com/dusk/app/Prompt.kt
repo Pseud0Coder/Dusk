@@ -95,7 +95,7 @@ Scaling by the level they chose:
 """
 
 fun promptFor(cannabisLevel: String): String =
-    COMMON + CIGARETTE + (if (cannabisLevel.isNotEmpty()) ADDON else "")
+    Guard.ROLE_AND_SCOPE + COMMON + CIGARETTE + (if (cannabisLevel.isNotEmpty()) ADDON else "")
 
 fun greetingFor(@Suppress("UNUSED_PARAMETER") flow: String): String =
     "Tell me how it's actually going. The hard parts too. That's what I'm here for."

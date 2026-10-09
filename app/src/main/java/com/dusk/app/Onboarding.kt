@@ -472,7 +472,12 @@ private fun IntakeStep(onFinish: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
-                onClick = { Store.setIntake(q.label, text.trim()); next() },
+                onClick = {
+                    // Free text goes to the coach as data. Hostile or off-topic notes are dropped, and long ones cut.
+                    val note = text.trim().take(300).let { if (Guard.blockedLocally(it)) "" else it }
+                    Store.setIntake(q.label, note)
+                    next()
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) { Text(if (text.isBlank()) "Skip and build my plan" else "Build my plan") }
         } else if (q.multi) {
@@ -517,7 +522,7 @@ private fun planRequest(): String =
 private suspend fun buildPlan(note: String?): String? {
     val last = Store.messages.lastOrNull()
     if (last == null || last.role != "user") {
-        Store.addMessage(Msg("user", note ?: planRequest()))
+        Store.addMessage(Msg("user", note ?: planRequest(), trusted = true))
     }
     return try {
         val reply = Ai.reply()

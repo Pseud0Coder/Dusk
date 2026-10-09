@@ -10,7 +10,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 
-data class Msg(val role: String, val content: String)
+/** [trusted] marks messages the app itself writes for the person (button taps, setup answers). They skip the scope check. */
+data class Msg(val role: String, val content: String, val trusted: Boolean = false)
 
 /** One craving: when it started, for what, and how it ended ("open", "passed", "gave_in"). */
 data class CravingEvent(val start: Long, val sub: String, val end: Long = 0L, val outcome: String = "open")
