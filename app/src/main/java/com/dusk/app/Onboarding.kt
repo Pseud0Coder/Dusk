@@ -17,9 +17,14 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +35,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -47,7 +60,9 @@ data class Q(
     val text: String,
     val options: List<String> = emptyList(),
     val multi: Boolean = false,
-    val freeText: Boolean = false
+    val freeText: Boolean = false,
+    /** The cannabis add-on: yes/no, then light, medium or heavy. Nothing else is ever asked about cannabis. */
+    val addon: Boolean = false
 )
 
 private val wakeQ = Q(
@@ -72,37 +87,19 @@ private val cigaretteQs = listOf(
         listOf("Yes", "Not sure", "No")),
 )
 
-private val cannabisQs = listOf(
-    Q("How often", "How often do you use cannabis?", listOf("Every day", "Most days", "A few days a week")),
-    Q("Hours high per day", "On a typical day, how many hours are you high?",
-        listOf("Under 2", "2 to 5", "5 to 8", "More than 8")),
-    Q("What they use", "What do you mostly use? Pick all that apply.",
-        listOf("Flower", "Concentrates or vapes", "Edibles", "Mixed with tobacco"), multi = true),
-    Q("When they use", "When do you use cannabis? Pick all that apply.",
-        listOf("On waking", "Afternoon", "After work", "Evening", "To fall asleep"), multi = true),
-)
+private val addonQ = Q("Cannabis", "Do you also use cannabis?", addon = true)
 
-fun questionsFor(flow: String): List<Q> = when (flow) {
-    FLOW_CIGARETTE -> cigaretteQs
-    FLOW_BOTH -> cigaretteQs + cannabisQs
-    else -> cannabisQs
-} + listOf(wakeQ, bedQ, noteQ)
+fun questionsFor(): List<Q> = cigaretteQs + addonQ + listOf(wakeQ, bedQ, noteQ)
 
 private fun answerOf(label: String): String = Store.intake.firstOrNull { it.first == label }?.second ?: ""
 
-private fun personalNotes(flow: String): List<String> {
+private fun personalNotes(): List<String> {
     val notes = mutableListOf<String>()
-    if (flow == FLOW_CIGARETTE || flow == FLOW_BOTH) {
-        val heavy = answerOf("First cigarette") == "Within 30 minutes" ||
-            answerOf("Cigarettes per day") in listOf("20 to 29", "30 or more")
-        if (heavy) notes.add("Smoking soon after waking, or 20 or more a day, usually means stronger cravings. A pharmacist can talk you through stop-smoking aids.")
-        if (answerOf("Smoking triggers").contains("With alcohol")) notes.add("Alcohol is a top relapse trigger in the first month. Plan around it.")
-    }
-    if (flow == FLOW_CANNABIS || flow == FLOW_BOTH) {
-        notes.add("Cannabis withdrawal varies a lot between people, so the first week is planned tightly either way.")
-        if (answerOf("When they use").contains("To fall asleep")) notes.add("You use to fall asleep, so sleep is the part most likely to lag. Your evening wind-down matters most.")
-        if (answerOf("What they use").contains("Mixed with tobacco")) notes.add("Mixing with tobacco means nicotine withdrawal too. A pharmacist can help with that part.")
-    }
+    val heavy = answerOf("First cigarette") == "Within 30 minutes" ||
+        answerOf("Cigarettes per day") in listOf("20 to 29", "30 or more")
+    if (heavy) notes.add("Smoking soon after waking, or 20 or more a day, usually means stronger cravings. A pharmacist can talk you through stop-smoking aids.")
+    if (answerOf("Smoking triggers").contains("With alcohol")) notes.add("Alcohol is a top relapse trigger in the first month. Plan around it.")
+    if (Store.addon) notes.add("Cannabis rides along on the same quit day. Sleep is the part most likely to lag, so your evening wind-down matters.")
     return notes
 }
 
@@ -203,6 +200,101 @@ private fun ChipRow(labels: List<String>, selected: Int, onSelect: (Int) -> Unit
     }
 }
 
+/**
+ * Three stops: light, medium, heavy. Nothing is selected until the person picks one, so the app never
+ * nudges an answer. There are no numbers or frequencies on purpose.
+ */
+@Composable
+fun LevelSlider(selected: Int, onSelect: (Int) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val labels = listOf("Light", "Medium", "Heavy")
+    var widthPx by remember { mutableStateOf(0) }
+    val latestSelect by rememberUpdatedState(onSelect)
+    fun indexAt(x: Float): Int = if (widthPx <= 0) 0 else ((x / widthPx) * 3f).toInt().coerceIn(0, 2)
+    val track = c.outlineVariant
+    val fill = c.primary
+    val ring = c.outline
+    val bg = c.background
+
+    Column(
+        Modifier.fillMaxWidth()
+            .onSizeChanged { widthPx = it.width }
+            .pointerInput(Unit) { detectTapGestures { latestSelect(indexAt(it.x)) } }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(onHorizontalDrag = { change, _ ->
+                    latestSelect(indexAt(change.position.x))
+                    change.consume()
+                })
+            }
+    ) {
+        Canvas(Modifier.fillMaxWidth().height(40.dp)) {
+            val cy = size.height / 2f
+            val xs = listOf(1, 3, 5).map { size.width * it / 6f }
+            val stroke = 6.dp.toPx()
+            drawLine(track, Offset(xs[0], cy), Offset(xs[2], cy), strokeWidth = stroke, cap = StrokeCap.Round)
+            if (selected >= 0) drawLine(fill, Offset(xs[0], cy), Offset(xs[selected], cy), strokeWidth = stroke, cap = StrokeCap.Round)
+            xs.forEachIndexed { i, x ->
+                val on = i == selected
+                val reached = i <= selected
+                drawCircle(if (reached) fill else bg, radius = if (on) 15.dp.toPx() else 10.dp.toPx(), center = Offset(x, cy))
+                if (!reached) drawCircle(ring, radius = 10.dp.toPx(), center = Offset(x, cy), style = Stroke(2.dp.toPx()))
+            }
+        }
+        Row(Modifier.fillMaxWidth().selectableGroup()) {
+            labels.forEachIndexed { i, label ->
+                Box(
+                    Modifier.weight(1f).heightIn(min = 48.dp)
+                        .selectable(selected = i == selected, role = Role.RadioButton, onClick = { onSelect(i) })
+                        .semantics { stateDescription = if (i == selected) "Selected" else "Not selected" },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (i == selected) c.primary else c.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The whole cannabis add-on: "Do you also use cannabis?" Yes or No, then the slider if Yes. Stores one word. */
+@Composable
+fun CannabisAsk(doneLabel: String, onDone: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    var yes by remember {
+        mutableStateOf<Boolean?>(
+            when {
+                Store.addon -> true
+                Store.cannabis == "no" -> false
+                else -> null
+            }
+        )
+    }
+    var level by remember { mutableStateOf(CANNABIS_LEVELS.indexOf(Store.cannabisLevel)) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        ChipRow(listOf("Yes", "No"), when (yes) { true -> 0; false -> 1; null -> -1 }) { yes = it == 0 }
+        if (yes == true) {
+            Muted("How would you describe it? There's no wrong answer. This only shapes how closely your plan is paced.")
+            LevelSlider(level) { level = it }
+        }
+        Text(
+            "That's all Dusk asks about cannabis. It stays on your phone.",
+            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+        )
+        Button(
+            onClick = {
+                Store.chooseCannabis(if (yes == true) CANNABIS_LEVELS[level] else "no")
+                onDone()
+            },
+            enabled = yes == false || (yes == true && level >= 0),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) { Text(doneLabel) }
+    }
+}
+
 // ---------- Flow ----------
 
 @Composable
@@ -211,24 +303,24 @@ fun Onboarding(onDone: () -> Unit) {
     var step by rememberSaveable {
         mutableStateOf(
             when {
-                Store.flow.isEmpty() -> "pick"
+                Store.flow.isEmpty() || !Store.consented -> "welcome"
                 else -> "mode"
             }
         )
     }
     var offset by rememberSaveable { mutableStateOf(1) }
-    var stagger by rememberSaveable { mutableStateOf(0) }
     var buildNote by rememberSaveable { mutableStateOf<String?>(null) }
 
     when (step) {
-        "pick" -> PickStep { f ->
-            Store.setFlow(ctx, f)
+        "welcome" -> WelcomeStep {
+            Store.acceptConsent()
+            Store.setFlow(ctx, FLOW_CIGARETTE)
             step = "mode"
         }
         "mode" -> ModeStep(onTalk = { step = "persona" }, onTap = { step = "intake" })
         "persona" -> PersonaStep { step = "voice" }
         "voice" -> VoiceScreen(
-            opening = voiceOpeningFor(Store.flow),
+            opening = voiceOpeningFor(),
             onRoutine = { step = "plan" },
             onType = { step = "intake" },
             onExit = { step = "mode" }
@@ -238,21 +330,13 @@ fun Onboarding(onDone: () -> Unit) {
         "plan" -> PlanStep(
             offset = offset,
             onOffset = { offset = it },
-            stagger = stagger,
-            onStagger = { stagger = it },
             onRebuild = {
                 buildNote = "Offer a different version of the routine, in the same format."
                 step = "build"
             },
             onApprove = { tasks ->
                 Store.setTasks(tasks)
-                val base = LocalDate.now().toEpochDay() + offset
-                if (Store.flow == FLOW_BOTH) {
-                    Store.chooseStart(FLOW_CIGARETTE, base + (if (stagger == 2) 7L else 0L))
-                    Store.chooseStart(FLOW_CANNABIS, base + (if (stagger == 1) 7L else 0L))
-                } else {
-                    Store.chooseStart(Store.flow, base)
-                }
+                Store.chooseStart(LocalDate.now().toEpochDay() + offset)
                 step = "perms"
             }
         )
@@ -261,12 +345,22 @@ fun Onboarding(onDone: () -> Unit) {
     }
 }
 
+/** What Dusk keeps and what it sends away. Shown at the first screen and under Settings. */
+const val PRIVACY_SUMMARY =
+    "What stays on this phone: your answers, plan, chat and progress. Dusk has no account and no server of its own.\n\n" +
+    "What leaves it: to write your plan and answer you, Dusk sends your chat, your setup answers (like how many cigarettes you smoke and, " +
+    "if you chose to add it, a light, medium or heavy cannabis level) and your day count to an AI service. " +
+    "If you pick a coach voice, the words Dusk speaks are sent to a voice service to turn them into audio. " +
+    "What you say out loud is turned into text by your phone's own speech recognition.\n\n" +
+    "Dusk is a coach, not a doctor or a medical service. It doesn't diagnose or treat anything. " +
+    "Talk to a doctor or pharmacist about medicines and about how you feel.\n\n" +
+    "To remove everything Dusk stores, use Settings, then Delete my data, or uninstall the app."
+
 @Composable
-private fun PickStep(onPick: (String) -> Unit) {
+private fun WelcomeStep(onContinue: () -> Unit) {
     val c = MaterialTheme.colorScheme
-    var cig by rememberSaveable { mutableStateOf(false) }
-    var can by rememberSaveable { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var agreed by rememberSaveable { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SunsetScene(
@@ -278,34 +372,42 @@ private fun PickStep(onPick: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Heading("After dusk comes the night")
-            Muted("Quitting is hard, and some nights will be harder than the first days. Dusk tells you what's coming and helps you get ready while there's still light.")
+            Muted("Quitting cigarettes is hard, and some nights will be harder than the first days. Dusk tells you what's coming and helps you get ready while there's still light.")
             Spacer(Modifier.height(4.dp))
-            Text("What are you quitting? Pick one or both.", style = MaterialTheme.typography.titleMedium)
-            SelectCard("Cigarettes", R.drawable.ic_t_smoking, cig) { cig = !cig; error = null }
-            SelectCard("Cannabis", R.drawable.ic_t_cannabis, can) { can = !can; error = null }
-            error?.let { Text(it, color = c.error) }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .selectable(selected = agreed, role = Role.Checkbox, onClick = { agreed = !agreed })
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Checkbox(checked = agreed, onCheckedChange = null)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "I'm 18 or older. I understand Dusk is a coach, not a doctor, and that what I tell it is sent to an AI service to write my plan.",
+                    style = MaterialTheme.typography.bodyMedium, color = c.onBackground
+                )
+            }
+            TextButton(onClick = { showPrivacy = true }) { Text("How my data is used") }
             Button(
-                onClick = {
-                    when {
-                        cig && can -> onPick(FLOW_BOTH)
-                        cig -> onPick(FLOW_CIGARETTE)
-                        can -> onPick(FLOW_CANNABIS)
-                        else -> error = "Pick at least one."
-                    }
-                },
+                onClick = onContinue,
+                enabled = agreed,
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) { Text("Continue") }
-            Text(
-                "Dusk is a coach, not a doctor. For medicines, ask a pharmacist or doctor.",
-                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-            )
         }
+    }
+    if (showPrivacy) {
+        AlertDialog(
+            onDismissRequest = { showPrivacy = false },
+            title = { Text("How your data is used") },
+            text = { Text(PRIVACY_SUMMARY, modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("Close") } }
+        )
     }
 }
 
 @Composable
 private fun ModeStep(onTalk: () -> Unit, onTap: () -> Unit) {
-    val count = questionsFor(Store.flow).size
+    val count = questionsFor().size
     Frame {
         Spacer(Modifier.height(24.dp))
         Heading("How do you want to set up?")
@@ -334,7 +436,7 @@ private fun PersonaStep(onNext: () -> Unit) {
 @Composable
 private fun IntakeStep(onFinish: () -> Unit) {
     val c = MaterialTheme.colorScheme
-    val qs = remember(Store.flow) { questionsFor(Store.flow) }
+    val qs = remember { questionsFor() }
     var qi by rememberSaveable { mutableStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     if (qi > qs.lastIndex) qi = 0
@@ -358,7 +460,9 @@ private fun IntakeStep(onFinish: () -> Unit) {
         Text("Question ${qi + 1} of ${qs.size}", style = MaterialTheme.typography.labelLarge, color = c.onSurfaceVariant)
         Heading(q.text, 28)
 
-        if (q.freeText) {
+        if (q.addon) {
+            CannabisAsk(doneLabel = "Next") { next() }
+        } else if (q.freeText) {
             var text by remember(qi) { mutableStateOf(answer) }
             OutlinedTextField(
                 value = text,
@@ -478,21 +582,14 @@ private fun BuildStep(note: String?, onReady: () -> Unit) {
 private fun PlanStep(
     offset: Int,
     onOffset: (Int) -> Unit,
-    stagger: Int,
-    onStagger: (Int) -> Unit,
     onRebuild: () -> Unit,
     onApprove: (List<Task>) -> Unit
 ) {
-    val c = MaterialTheme.colorScheme
     val reply = Store.messages.lastOrNull { it.role == "assistant" }?.content ?: ""
     val tasks = Ai.routineIn(reply) ?: emptyList()
     val explanation = Ai.display(reply)
     val day1 = LocalDate.now().plusDays(offset.toLong())
-    val both = Store.flow == FLOW_BOTH
-    val quitLines = if (!both) listOf(flowName(Store.flow) to day1) else listOf(
-        "Cigarettes" to day1.plusDays(if (stagger == 2) 7L else 0L),
-        "Cannabis" to day1.plusDays(if (stagger == 1) 7L else 0L)
-    )
+    val quitLines = listOf((if (Store.addon) "Cigarettes and cannabis" else "Cigarettes") to day1)
     val offsets = listOf(0, 1, 3)
 
     Column(
@@ -506,26 +603,24 @@ private fun PlanStep(
 
         QuitTiles(quitLines)
 
-        Text("When does day 1 start?", style = MaterialTheme.typography.titleMedium)
-        ChipRow(listOf("Today", "Tomorrow", "In 3 days"), offsets.indexOf(offset)) { onOffset(offsets[it]) }
-        if (both) {
-            Text("Quit both together, or one first?", style = MaterialTheme.typography.titleMedium)
-            ChipRow(listOf("Together", "Cigarettes first", "Cannabis first"), stagger, onStagger)
-            Text(
-                "One first means the other follows a week later.",
-                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-            )
+        // People who set up by voice haven't been asked about the add-on yet. Two taps, then the plan can use it.
+        if (Store.cannabis.isEmpty()) {
+            Text("Do you also use cannabis?", style = MaterialTheme.typography.titleMedium)
+            CannabisAsk(doneLabel = "Save") { }
         }
 
-        TideChart(Store.substances(), day1)
+        Text("When does day 1 start?", style = MaterialTheme.typography.titleMedium)
+        ChipRow(listOf("Today", "Tomorrow", "In 3 days"), offsets.indexOf(offset)) { onOffset(offsets[it]) }
+
+        TideChart(Store.tideSubstances(), day1)
         SwapMagnet(tasks)
         DayStrip(tasks)
         RoutineMagnet(tasks)
-        personalNotes(Store.flow).forEachIndexed { i, n -> HeadsUp(n, if (i % 2 == 0) 1.2f else -1f) }
+        personalNotes().forEachIndexed { i, n -> HeadsUp(n, if (i % 2 == 0) 1.2f else -1f) }
 
         Text(
             "Timelines vary from person to person.",
-            style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Button(
             onClick = { if (tasks.isNotEmpty()) onApprove(tasks) },

@@ -22,14 +22,16 @@ data class Task(
 val KINDS = setOf("body", "mind", "food", "sleep", "social")
 
 const val DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+/** Dusk is a cigarette quit coach. Cannabis is an optional add-on to that one journey, never its own flow. */
 const val FLOW_CIGARETTE = "cigarette"
 const val FLOW_CANNABIS = "cannabis"
-const val FLOW_BOTH = "both"
+
+/** The only things Dusk knows about cannabis use: yes or no, and how heavy the person says it is. */
+val CANNABIS_LEVELS = listOf("light", "medium", "heavy")
 
 fun flowName(flow: String) = when (flow) {
     FLOW_CIGARETTE -> "Cigarettes"
     FLOW_CANNABIS -> "Cannabis"
-    FLOW_BOTH -> "Cigarettes and cannabis"
     else -> ""
 }
 
@@ -56,8 +58,8 @@ fun parseTasks(json: String): List<Task> {
 }
 
 /**
- * App state. Each flow (cigarette, cannabis) keeps its own chat, routine,
- * day count and checklist. Only the active flow's routine has reminders.
+ * App state. There is one journey (cigarettes) with one chat, routine, quit day and checklist.
+ * Cannabis is only an optional add-on: a yes/no and a light, medium or heavy choice.
  */
 object Store {
     private lateinit var prefs: SharedPreferences
@@ -75,8 +77,15 @@ object Store {
     var model by mutableStateOf(DEFAULT_MODEL)
     var flow by mutableStateOf("")
     var startDay by mutableStateOf(-1L)
-    /** Cannabis quit day when quitting both (cigarettes use startDay). */
-    var startDay2 by mutableStateOf(-1L)
+    /** "" not asked yet, "no", or one of [CANNABIS_LEVELS]. Kept on the phone and sent to the coach as context. */
+    var cannabis by mutableStateOf("")
+    /** The chosen level, or "" when there is no cannabis add-on. */
+    val cannabisLevel: String get() = if (cannabis in CANNABIS_LEVELS) cannabis else ""
+    val addon: Boolean get() = cannabisLevel.isNotEmpty()
+    /** The person confirmed they are 18 or older and agreed to how Dusk uses their answers. */
+    var consented by mutableStateOf(false)
+    /** Set once when an old cannabis-only install is moved to the cigarette journey, until the person has seen the note. */
+    var showCannabisOnlyNote by mutableStateOf(false)
     var banked by mutableStateOf(0)
     val cravings = mutableStateListOf<CravingEvent>()
     val slips = mutableStateListOf<Pair<Long, String>>()
@@ -113,7 +122,11 @@ object Store {
         prefs.edit().remove("key").remove("model").apply()
         apiKey = ""
         model = DEFAULT_MODEL
+        val migrated = migrate()
         flow = prefs.getString("flow", "") ?: ""
+        cannabis = prefs.getString("canna", "") ?: ""
+        showCannabisOnlyNote = prefs.getBoolean("note_cannabis_only", false)
+        consented = prefs.getBoolean("consent_v1", false)
         tipsSeen = prefs.getBoolean("tips_seen", false)
         reduceMotion = prefs.getBoolean("reduce_motion", false)
         persona = prefs.getString("persona", "kelsey") ?: "kelsey"
@@ -123,17 +136,90 @@ object Store {
         lastCheckin = prefs.getString("checkin_last", "") ?: ""
         loadFlow()
         loaded = true
+        if (migrated) runCatching { Reminders.rescheduleAll(ctx.applicationContext) }
+    }
+
+    private const val SCHEMA = 2
+
+    /** Intake answers the cigarette-first redesign no longer collects. Removed from the phone on upgrade. */
+    private val REMOVED_ANSWERS = setOf("How often", "Hours high per day", "What they use", "When they use")
+
+    /**
+     * One-time clean-up for installs that predate the cigarette-first redesign.
+     * - "Both" users keep their chat, routine and day count as the cigarette journey, with the cannabis add-on
+     *   switched on at the level their old answer maps to.
+     * - Cannabis-only users are moved to the cigarette journey (or back to setup) and shown a note.
+     * - The detailed cannabis answers are deleted either way.
+     * Returns true if anything was changed.
+     */
+    private fun migrate(): Boolean {
+        if (prefs.getInt("schema", 1) >= SCHEMA) return false
+        val old = prefs.getString("flow", "") ?: ""
+        val all = prefs.all
+        val e = prefs.edit()
+
+        fun put(key: String, v: Any?) {
+            when (v) {
+                is String -> e.putString(key, v)
+                is Long -> e.putLong(key, v)
+                is Int -> e.putInt(key, v)
+                is Boolean -> e.putBoolean(key, v)
+                is Float -> e.putFloat(key, v)
+            }
+        }
+
+        var level = ""
+        var flowNow = old
+        if (old == "both") {
+            val how = runCatching {
+                val a = JSONArray(prefs.getString("intake_both", "[]"))
+                (0 until a.length()).map { a.getJSONArray(it) }.firstOrNull { it.getString(0) == "How often" }?.getString(1)
+            }.getOrNull()
+            level = when (how) { "Every day" -> "heavy"; "Most days" -> "medium"; else -> "light" }
+            val gulls = (all["gulls_cigarette_both"] as? Int ?: 0) + (all["gulls_cannabis_both"] as? Int ?: 0)
+            all.filterKeys { it.endsWith("_both") && !it.startsWith("gulls_") && !it.startsWith("start2") }
+                .forEach { (key, v) -> put(key.removeSuffix("_both") + "_cigarette", v) }
+            e.putInt("gulls_cigarette", gulls)
+            flowNow = FLOW_CIGARETTE
+        } else if (old == "cannabis") {
+            // Cigarettes are the journey now. Use an existing cigarette setup if there is one, otherwise start setup again.
+            flowNow = if (prefs.getBoolean("onboarded_cigarette", false)) FLOW_CIGARETTE else ""
+            e.putBoolean("note_cannabis_only", true)
+        }
+        if (old == FLOW_CIGARETTE || (old == "cannabis" && flowNow == FLOW_CIGARETTE)) {
+            e.putInt("gulls_cigarette", (all["gulls_cigarette_cigarette"] as? Int ?: 0) + (all["gulls_cigarette"] as? Int ?: 0))
+        }
+
+        // Delete everything that belonged to the old cannabis and "both" flows, and the unused second quit day.
+        all.keys.filter {
+            it.endsWith("_both") || it.endsWith("_cannabis") || it == "gulls_cigarette_cigarette" ||
+                it == "gulls_cannabis_cigarette" || it == "start2_cigarette" || it == "start2Ms_cigarette"
+        }.forEach { e.remove(it) }
+
+        // Drop the detailed cannabis answers from the cigarette intake.
+        runCatching {
+            val src = if (old == "both") prefs.getString("intake_both", "[]") else prefs.getString("intake_cigarette", "[]")
+            val a = JSONArray(src)
+            val kept = JSONArray()
+            for (i in 0 until a.length()) if (a.getJSONArray(i).getString(0) !in REMOVED_ANSWERS) kept.put(a.getJSONArray(i))
+            if (old == "both" || old == FLOW_CIGARETTE) e.putString("intake_cigarette", kept.toString())
+        }
+
+        e.putString("flow", flowNow)
+        if (level.isNotEmpty()) e.putString("canna", level)
+        e.putInt("schema", SCHEMA)
+        e.apply()
+        return true
     }
 
     private fun loadFlow() {
         messages.clear(); tasks.clear(); done.clear(); intake.clear()
         onboarded = false
-        startDay = -1L; startDay2 = -1L; banked = 0; doneDay = -1L
+        startDay = -1L; banked = 0; doneDay = -1L
         cravings.clear(); slips.clear()
         if (flow.isEmpty()) return
 
         startDay = prefs.getLong(k("start"), -1L)
-        startDay2 = prefs.getLong(k("start2"), -1L)
         banked = prefs.getInt(k("banked"), 0)
         runCatching {
             val ca = JSONArray(prefs.getString(k("cravings"), "[]"))
@@ -189,51 +275,45 @@ object Store {
     /** Days since the first quit day (day 1 = the quit day). 0 if not started. */
     fun dayNumber(): Int = firstStart().let { if (it < 0) 0 else (today() - it + 1).toInt() }
 
-    fun substances(): List<String> = when (flow) {
-        FLOW_BOTH -> listOf(FLOW_CIGARETTE, FLOW_CANNABIS)
-        "" -> emptyList()
-        else -> listOf(flow)
-    }
+    /** What the person is quitting and tracking: cigarettes. The cannabis add-on has no day count of its own. */
+    fun substances(): List<String> = if (flow.isEmpty()) emptyList() else listOf(FLOW_CIGARETTE)
 
-    fun startOf(sub: String): Long = if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) startDay2 else startDay
+    /** Cigarettes, plus cannabis when the add-on is on. Used only to draw the withdrawal tide. */
+    fun tideSubstances(): List<String> = substances() + (if (addon) listOf(FLOW_CANNABIS) else emptyList())
+
+    /** The add-on follows the cigarette quit day, so every substance shares one start. */
+    fun startOf(@Suppress("UNUSED_PARAMETER") sub: String): Long = startDay
 
     fun dayOf(sub: String): Int = startOf(sub).let { if (it < 0) 0 else (today() - it + 1).toInt() }
 
-    fun firstStart(): Long = substances().map { startOf(it) }.filter { it >= 0 }.minOrNull() ?: -1L
+    fun firstStart(): Long = startDay
 
     /** The exact quit moment: now if quitting today, otherwise the start of that day. */
-    fun startMs(sub: String): Long {
-        val saved = prefs.getLong(if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) k("start2Ms") else k("startMs"), -1L)
-        val day = startOf(sub)
+    fun startMs(@Suppress("UNUSED_PARAMETER") sub: String): Long {
+        val saved = prefs.getLong(k("startMs"), -1L)
+        val day = startDay
         if (day < 0) return -1L
         if (saved > 0 && java.time.Instant.ofEpochMilli(saved).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay() == day) return saved
         return LocalDate.ofEpochDay(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
 
-    fun chooseStart(sub: String, day: Long) {
+    fun chooseStart(day: Long) {
         val ms = if (day == today()) System.currentTimeMillis()
         else LocalDate.ofEpochDay(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        prefs.edit().putLong(if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) k("start2Ms") else k("startMs"), ms).apply()
-        if (flow == FLOW_BOTH && sub == FLOW_CANNABIS) {
-            startDay2 = day
-            prefs.edit().putLong(k("start2"), day).apply()
-        } else {
-            startDay = day
-            prefs.edit().putLong(k("start"), day).apply()
-        }
+        startDay = day
+        prefs.edit().putLong(k("startMs"), ms).putLong(k("start"), day).apply()
         notifyWidgets()
     }
 
-    fun gulls(sub: String): Int {
+    /** Gulls set free so far. One count for the whole journey. */
+    fun totalGulls(): Int {
         @Suppress("UNUSED_VARIABLE") val tick = gullTick
-        return prefs.getInt(k("gulls_$sub"), 0)
+        return prefs.getInt(k("gulls"), 0)
     }
-
-    fun totalGulls(): Int = substances().sumOf { gulls(it) }
 
     /** A craving was ridden out: one more gull in the sky. */
     fun addGull(sub: String) {
-        prefs.edit().putInt(k("gulls_$sub"), gulls(sub) + 1).apply()
+        prefs.edit().putInt(k("gulls"), totalGulls() + 1).apply()
         gullTick += 1
         resolveCraving(sub, "passed")
     }
@@ -246,12 +326,16 @@ object Store {
     /** One sunset for every completed day since quitting. Never goes down, even after a slip. */
     fun sunsets(): Int = banked + liveSunsets()
 
-    /** A slip restarts that substance's day count but keeps every sunset, gull and island piece. */
+    /**
+     * A cigarette slip restarts the day count but keeps every sunset, gull and island piece.
+     * A cannabis slip is only logged: the add-on has no day count of its own.
+     */
     fun recordSlip(sub: String) {
         slips.add(System.currentTimeMillis() to sub)
         saveSlips()
+        if (sub == FLOW_CANNABIS) return
         val before = sunsets()
-        chooseStart(sub, today())
+        chooseStart(today())
         banked = (before - liveSunsets()).coerceAtLeast(0)
         prefs.edit().putInt(k("banked"), banked).apply()
     }
@@ -271,7 +355,7 @@ object Store {
         prefs.edit().putString(k("slips"), a.toString()).apply()
     }
 
-    /** A craving began. "" means the substance isn't known yet (quitting both). */
+    /** A craving began, for cigarettes unless the person says it's about cannabis. */
     fun startCraving(sub: String) {
         val now = System.currentTimeMillis()
         val recentOpen = cravings.lastOrNull { it.outcome == "open" && now - it.start < 30 * 60_000 }
@@ -285,7 +369,7 @@ object Store {
     /** How the latest open craving ended: "passed" or "gave_in". */
     fun resolveCraving(sub: String, outcome: String) {
         val now = System.currentTimeMillis()
-        val i = cravings.indexOfLast { it.outcome == "open" && (it.sub == sub || it.sub.isBlank()) }
+        val i = cravings.indexOfLast { it.outcome == "open" }
         if (i >= 0) {
             cravings[i] = cravings[i].copy(sub = sub, end = now, outcome = outcome)
         } else {
@@ -356,7 +440,35 @@ object Store {
     }
 
     fun startToday() {
-        substances().forEach { chooseStart(it, today()) }
+        chooseStart(today())
+    }
+
+    fun chooseCannabis(v: String) {
+        cannabis = v
+        prefs.edit().putString("canna", v).apply()
+        notifyWidgets()
+    }
+
+    /** Deletes everything Dusk stored on this phone and returns the app to first-run state. */
+    fun wipeAll(ctx: Context) {
+        prefs.edit().clear().putInt("schema", SCHEMA).apply()
+        flow = ""; cannabis = ""; consented = false; showCannabisOnlyNote = false
+        persona = "kelsey"; checkinFreq = 0; checkinOngoing = false; checkinAsked = false; lastCheckin = ""
+        tipsSeen = false; reduceMotion = false; cravingFor = null
+        loadFlow()
+        runCatching { Reminders.rescheduleAll(ctx.applicationContext) }
+        runCatching { Checkins.schedule(ctx.applicationContext) }
+        notifyWidgets()
+    }
+
+    fun acceptConsent() {
+        consented = true
+        prefs.edit().putBoolean("consent_v1", true).apply()
+    }
+
+    fun dismissCannabisOnlyNote() {
+        showCannabisOnlyNote = false
+        prefs.edit().remove("note_cannabis_only").apply()
     }
 
     fun setIntake(label: String, value: String) {

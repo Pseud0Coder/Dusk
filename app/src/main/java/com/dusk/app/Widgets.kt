@@ -199,7 +199,7 @@ object Widgets {
                 val sub = mainSub()
                 rv.setTextViewText(
                     R.id.w_label,
-                    if (Store.flow == FLOW_BOTH) "Day" else "${flowName(sub ?: Store.flow)} · day"
+                    "Day"
                 )
                 rv.setTextViewText(R.id.w_day, dayText())
                 setClear(rv, now, prepText())

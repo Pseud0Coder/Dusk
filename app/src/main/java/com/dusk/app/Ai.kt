@@ -23,14 +23,13 @@ object Ai {
     private fun context(): String {
         val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE yyyy-MM-dd HH:mm"))
         val today = Store.today()
-        val day = Store.substances().joinToString("\n") { s ->
-            val st = Store.startOf(s)
-            when {
-                st < 0 -> "${flowName(s)}: quit day not set yet."
-                st > today -> "${flowName(s)}: quit day is in ${st - today} day(s), still preparing."
-                else -> "${flowName(s)}: day ${today - st + 1} since quitting."
-            }
+        val st = Store.startDay
+        val day = when {
+            st < 0 -> "Quit day not set yet."
+            st > today -> "Quit day is in ${st - today} day(s), still preparing."
+            else -> "Day ${today - st + 1} since quitting cigarettes."
         }
+        val addon = if (Store.addon) "\nAlso quitting cannabis, on the same quit day. The level they chose: ${Store.cannabisLevel}." else ""
         val profile = if (Store.intake.isEmpty()) "" else
             "\nIntake answers (already collected in the app):\n" + Store.profileText()
         val routine = if (Store.tasks.isEmpty()) "No routine saved yet." else
@@ -38,14 +37,14 @@ object Ai {
                 "${t.time} ${t.title}" + (if (t.id in Store.done) " (done today)" else "")
             }
         val checkin = if (Store.lastCheckin.isBlank()) "" else "\nLast check-in: ${Store.lastCheckin}" + Track.summaryForCoach()
-        return "\n\nCurrent context\nFlow: ${flowName(Store.flow)}\nNow: $now\n$day$profile$checkin\n$routine"
+        return "\n\nCurrent context\nQuitting: cigarettes\nNow: $now\n$day$addon$profile$checkin\n$routine"
     }
 
     /** Sends the conversation to OpenRouter and returns the assistant reply. Call from the main thread. */
     suspend fun reply(voiceOpening: String? = null): String {
         val voice = if (voiceOpening == null) "" else
             VOICE_MODE + "\nThis voice session opened with you saying: \"$voiceOpening\""
-        val system = promptFor(Store.flow) + personaById(Store.persona).promptBlock() + voice + context()
+        val system = promptFor(Store.cannabisLevel) + personaById(Store.persona).promptBlock() + voice + context()
         return complete(system, Store.messages.takeLast(40).toList(), fast = voiceOpening != null)
     }
 
@@ -59,7 +58,7 @@ object Ai {
             "Personality: ${p.style}\n" +
             "Rules: 1 or 2 short sentences, 25 words at most in total. Natural spoken English, warm and calm. " +
             "No lists, emoji, markdown, or quotation marks. Only describe what you're told Dusk does. No medical advice."
-        val quitting = if (Store.flow.isBlank()) "smoking" else flowName(Store.flow).lowercase()
+        val quitting = "smoking"
         val user = "The person is quitting $quitting. This is part ${part + 1} of ${INTRO_TOPICS.size} of a spoken introduction to Dusk. " +
             "Different coaches take turns: each coach they tap reads the next part. " +
             (if (part == 0) "Open with a short greeting and your name. " else "Say your name in a few words, then carry on. ") +

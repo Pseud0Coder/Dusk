@@ -120,7 +120,7 @@ fun App() {
         if (!Store.onboarded || Store.pendingWidget != "craving") return@LaunchedEffect
         Store.pendingWidget = null
         voiceOpening = null
-        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
+        Store.startCraving(FLOW_CIGARETTE)
         screen = Screen.Coach
         send("I'm having a craving right now.")
     }
@@ -149,6 +149,9 @@ fun App() {
         }
         return
     }
+
+    ConsentGate()
+    CannabisOnlyNote()
 
     val opening = voiceOpening
     if (opening != null) {
@@ -195,7 +198,7 @@ fun App() {
                         send("I'm having a ${cravingWord(sub)} craving right now.")
                     },
                     onTalk = {
-                        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
+                        Store.startCraving(FLOW_CIGARETTE)
                         voiceOpening = CRAVING_OPENING
                     },
                     onOpenCoach = { screen = Screen.Coach },
@@ -247,7 +250,7 @@ fun App() {
                     OutlinedButton(onClick = {
                         quickCheckin = false
                         Store.logCheckin("Craving")
-                        Store.startCraving(if (Store.flow == FLOW_BOTH) "" else Store.flow)
+                        Store.startCraving(FLOW_CIGARETTE)
                         screen = Screen.Coach
                         send("I'm having a craving right now.")
                     }, modifier = Modifier.fillMaxWidth()) {
@@ -298,23 +301,11 @@ fun CheckinOffer(onAdjust: () -> Unit) {
 
 // ---------- Today ----------
 
-private fun prepLines(flow: String): List<String> = when (flow) {
-    FLOW_CIGARETTE -> listOf(
-        "Throw out cigarettes, lighters, and ashtrays.",
-        "If you want a stop-smoking aid, see a pharmacist this week.",
-        "Tell one person your quit day."
-    )
-    FLOW_BOTH -> listOf(
-        "Clear out cigarettes, lighters, gear, and stash.",
-        "If you want a stop-smoking aid, see a pharmacist this week.",
-        "Tell one person your quit days."
-    )
-    else -> listOf(
-        "Remove gear and stash.",
-        "Tell one person your quit day.",
-        "Expect strange dreams for a couple of weeks. They pass."
-    )
-}
+private fun prepLines(): List<String> = listOf(
+    "Throw out cigarettes, lighters, and ashtrays.",
+    "If you want a stop-smoking aid, see a pharmacist this week."
+) + (if (Store.addon) listOf("Clear out anything that's a cue, and plan your evenings. Expect light sleep and strange dreams for a couple of weeks. They pass.") else emptyList()) +
+    listOf("Tell one person your quit day.")
 
 private val MILESTONES = listOf(3, 7, 14, 30)
 
@@ -381,12 +372,11 @@ fun StatTile(icon: Int, value: String, label: String, modifier: Modifier = Modif
     }
 }
 
-/** Shown while a craving session is open. "It passed" sets a gull free. */
+/** Shown while a craving session is open. "It passed" sets a gull free. With the cannabis add-on, one tap picks which. */
 @Composable
 fun CravingBanner(onTalk: () -> Unit, onGaveIn: (String) -> Unit) {
     val sub = Store.cravingFor ?: return
     val d = tone(Tone.Coral)
-    val subs = if (sub.isBlank()) Store.substances() else listOf(sub)
     Surface(color = d.bg, contentColor = d.fg, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -394,26 +384,34 @@ fun CravingBanner(onTalk: () -> Unit, onGaveIn: (String) -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text("Riding out a craving", style = MaterialTheme.typography.titleMedium)
             }
+            if (Store.addon) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(FLOW_CIGARETTE, FLOW_CANNABIS).forEach { s ->
+                        FilterChip(
+                            selected = sub == s,
+                            onClick = { Store.cravingFor = s },
+                            label = { Text(flowName(s)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                labelColor = d.fg,
+                                selectedContainerColor = d.fg,
+                                selectedLabelColor = d.bg
+                            )
+                        )
+                    }
+                }
+            }
             Text("It'll feel endless. It isn't. Most pass within minutes. When this one does, let it go.", style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                subs.forEach { s ->
-                    Button(
-                        onClick = { Store.addGull(s) },
-                        colors = ButtonDefaults.buttonColors(containerColor = d.fg, contentColor = d.bg),
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if (subs.size > 1) "${flowName(s)} passed" else "It passed", maxLines = 1) }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                subs.forEach { s ->
-                    OutlinedButton(
-                        onClick = { Store.resolveCraving(s, "gave_in"); onGaveIn(s) },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = d.fg),
-                        border = BorderStroke(1.dp, d.fg.copy(alpha = 0.5f)),
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if (subs.size > 1) "${flowName(s)}: gave in" else "I gave in", maxLines = 1) }
-                }
-            }
+            Button(
+                onClick = { Store.addGull(sub) },
+                colors = ButtonDefaults.buttonColors(containerColor = d.fg, contentColor = d.bg),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("It passed", maxLines = 1) }
+            OutlinedButton(
+                onClick = { Store.resolveCraving(sub, "gave_in"); onGaveIn(sub) },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = d.fg),
+                border = BorderStroke(1.dp, d.fg.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("I gave in", maxLines = 1) }
             Row {
                 TextButton(onClick = onTalk, colors = ButtonDefaults.textButtonColors(contentColor = d.fg)) { Text("Talk it through") }
                 TextButton(onClick = { Store.cravingFor = null }, colors = ButtonDefaults.textButtonColors(contentColor = d.fg)) { Text("Later") }
@@ -470,7 +468,6 @@ fun TodayScreen(
     val subs = Store.substances()
     var tip by rememberSaveable { mutableStateOf(0) }
     var dismissedMilestone by rememberSaveable { mutableStateOf(-1) }
-    var pickCraving by remember { mutableStateOf(false) }
     var slipDialog by remember { mutableStateOf(false) }
     var openId by remember { mutableStateOf(-1) }
     val dayN = Store.dayNumber()
@@ -589,27 +586,13 @@ fun TodayScreen(
         item {
             Column(side, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { if (subs.size > 1) pickCraving = !pickCraving else onCraving(subs.first()) },
+                    onClick = { onCraving(FLOW_CIGARETTE) },
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = c.secondary, contentColor = c.onSecondary)
                 ) {
                     TIcon(R.drawable.ic_t_ripple, size = 22.dp)
                     Spacer(Modifier.width(10.dp))
                     Text("Craving? Ride it out", fontWeight = FontWeight.SemiBold)
-                }
-                if (pickCraving) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        subs.forEach { s ->
-                            OutlinedButton(
-                                onClick = { pickCraving = false; onCraving(s) },
-                                modifier = Modifier.weight(1f).height(52.dp)
-                            ) {
-                                TIcon(substanceIcon(s), size = 18.dp)
-                                Spacer(Modifier.width(8.dp))
-                                Text(flowName(s))
-                            }
-                        }
-                    }
                 }
                 TextButton(onClick = onTalk, modifier = Modifier.fillMaxWidth()) {
                     TIcon(R.drawable.ic_t_microphone, size = 18.dp)
@@ -623,7 +606,7 @@ fun TodayScreen(
             item {
                 Column(side, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        if (subs.size > 1) "Two tides at once. Each one passes." else phaseFor(Store.flow, dayN),
+                        phaseFor(dayN),
                         style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant
                     )
                     MilestoneRow(dayN)
@@ -641,7 +624,7 @@ fun TodayScreen(
                             Text("Before day 1", style = MaterialTheme.typography.titleMedium)
                         }
                         Spacer(Modifier.height(6.dp))
-                        prepLines(Store.flow).forEach {
+                        prepLines().forEach {
                             Text("\u2022  $it", color = c.onSurfaceVariant, modifier = Modifier.padding(vertical = 2.dp))
                         }
                         TextButton(onClick = { Store.startToday() }, contentPadding = PaddingValues(0.dp)) {
@@ -719,20 +702,11 @@ fun TodayScreen(
             text = {
                 Text(
                     "A slip is information, not a verdict. Your day count restarts today. Your sunsets, gulls, and island stay. " +
-                        "Next, your coach helps you find what led to it, so the plan gets better." +
-                        (if (subs.size > 1) " Which one was it?" else "")
+                        "Next, your coach helps you find what led to it, so the plan gets better."
                 )
             },
             confirmButton = {
-                Row {
-                    if (subs.size > 1) {
-                        subs.forEach { s ->
-                            TextButton(onClick = { slipDialog = false; onSlipped(s) }) { Text(flowName(s)) }
-                        }
-                    } else {
-                        TextButton(onClick = { slipDialog = false; onSlipped(subs.first()) }) { Text("Restart today") }
-                    }
-                }
+                TextButton(onClick = { slipDialog = false; onSlipped(FLOW_CIGARETTE) }) { Text("Restart today") }
             },
             dismissButton = { TextButton(onClick = { slipDialog = false }) { Text("Cancel") } }
         )
@@ -746,11 +720,14 @@ fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onGaveIn: (S
     val ctx = LocalContext.current
     val c = MaterialTheme.colorScheme
     var input by rememberSaveable { mutableStateOf("") }
+    var reporting by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(Store.messages.size, busy, error) {
         listState.animateScrollToItem(Store.messages.size + 1)
     }
+
+    reporting?.let { ReportReplyDialog(it) { reporting = null } }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         if (Store.cravingFor != null) {
@@ -770,7 +747,18 @@ fun CoachScreen(busy: Boolean, error: String?, onVoice: () -> Unit, onGaveIn: (S
                     val text = Ai.display(m.content)
                     val routine = Ai.routineIn(m.content)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (text.isNotBlank()) Bubble(text, mine = false)
+                        if (text.isNotBlank()) {
+                            Bubble(text, mine = false)
+                            TextButton(
+                                onClick = { reporting = text },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                TIcon(R.drawable.ic_t_flag, size = 14.dp, tint = c.onSurfaceVariant)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Report this reply", style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+                            }
+                        }
                         if (routine != null) RoutineCard(routine) {
                             Store.setTasks(routine)
                             Reminders.rescheduleAll(ctx)
@@ -897,6 +885,7 @@ fun SettingsScreen() {
     val c = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())
@@ -906,16 +895,27 @@ fun SettingsScreen() {
         Text("Settings", fontFamily = Fraunces, fontSize = 34.sp)
 
         // Quitting
-        SectionTitle(substanceIcon(if (Store.flow == FLOW_CANNABIS) FLOW_CANNABIS else FLOW_CIGARETTE), "Quitting")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(FLOW_CIGARETTE to "Cigarettes", FLOW_CANNABIS to "Cannabis", FLOW_BOTH to "Both").forEach { (f, label) ->
-                Choice(label, Store.flow == f, Modifier.weight(1f)) { if (Store.flow != f) Store.setFlow(ctx, f) }
-            }
-        }
+        SectionTitle(R.drawable.ic_t_smoking, "Quitting cigarettes")
         Text(
-            "Each keeps its own chat, routine, sunsets, and gulls. Reminders follow the one you pick.",
+            "Dusk is built around quitting cigarettes. Cannabis is an optional add-on to the same plan and the same quit day.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
         )
+        var addonOn by remember { mutableStateOf(Store.addon) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TIcon(R.drawable.ic_t_cannabis, size = 22.dp, tint = c.primary)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Also quitting cannabis", style = MaterialTheme.typography.titleMedium)
+                Text("Only a yes or no and a light, medium or heavy choice. Nothing else is asked.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+            }
+            Switch(checked = addonOn, onCheckedChange = { on ->
+                addonOn = on
+                if (!on) Store.chooseCannabis("no")
+            })
+        }
+        if (addonOn) {
+            LevelSlider(CANNABIS_LEVELS.indexOf(Store.cannabisLevel)) { Store.chooseCannabis(CANNABIS_LEVELS[it]) }
+        }
 
         HorizontalDivider(color = c.outlineVariant)
 
@@ -1001,6 +1001,23 @@ fun SettingsScreen() {
         IconAction(R.drawable.ic_t_refresh, "Redo setup questions") { Store.redoOnboarding() }
         IconAction(R.drawable.ic_t_trash, "Clear chat") { confirmClear = true }
 
+        HorizontalDivider(color = c.outlineVariant)
+        SectionTitle(R.drawable.ic_t_bell, "If you need help now")
+        HelpSection()
+
+        HorizontalDivider(color = c.outlineVariant)
+        SectionTitle(R.drawable.ic_t_flag, "About Dusk")
+        AboutSection(onDelete = { confirmDelete = true })
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete my data?") },
+            text = { Text("This removes your answers, chat, routine, progress and settings from this phone and starts Dusk from the beginning. It can't be undone.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; Store.wipeAll(ctx) }) { Text("Delete everything") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
     }
 
     if (confirmClear) {

@@ -2,7 +2,7 @@
 
 A quit coach that doesn't hype recovery. After dusk comes the night: Dusk tells you the truth about what's coming and helps you prepare. See PERSONALITY.md. An AI coach (DeepSeek V4.1 Flash via OpenRouter) gets to know your day, maps a research-based withdrawal timeline onto your real calendar, and turns it into a daily routine with reminders.
 
-Two flows, each with its own coach, timeline, routine and day count. You pick one when you first open the app and can switch in Settings.
+Dusk is built around quitting cigarettes: one coach, one timeline, one routine and one day count. Cannabis is an optional add-on to that same plan and quit day. The app asks only whether you also use it and whether that is light, medium or heavy. It never asks how much, how often, what form, or when, and it keeps that single word on your phone. You can change or remove it in Settings.
 
 ## Get the APK
 Download the latest build: https://github.com/Pseud0Coder/Dusk/releases/latest/download/Dusk.apk
@@ -16,12 +16,14 @@ Add these in the repo under Settings > Secrets and variables > Actions > New rep
 | --- | --- |
 | `OPENROUTER_KEY` | Powers the coach. With it set, people never see a key screen. |
 | `INWORLD_KEY` | Voices for the Inworld coaches (Kelsey, Jonah, Priya, Dennis). Basic auth key from the Inworld portal. `INWORLD_MODEL` optional (default `inworld-tts-2`). |
+| `DUSK_REPORT_URL` | Where "Report this reply" sends a report from inside the app (the reply and the reason, nothing else). Needed for Google Play's AI-content policy. |
+| `DUSK_SUPPORT_EMAIL` | Fallback for reports until the report URL exists: opens an email draft. Also the contact address for the store listing. |
 | `FISH_KEY` | Voices for the Fish Audio coaches (Sarah, Adrian, Nova). `FISH_MODEL` optional (default `s2.1-pro-free`, the free fair-use tier; set `s2.1-pro` once the account has API credit). |
 
 Coaches: pick a persona in setup or Settings. Each has a personality the coach takes on and a voice from Inworld or Fish Audio. Without that provider's key, the persona still works with the phone's built-in voice.
 
 ## Progress tracking
-The Progress tab shows time clear (live, per substance), where you are on the withdrawal tide, time to the next milestone, every logged craving (passed vs gave in, pass rate, typical minutes to pass), the last 7 days, the hours cravings hit, likely cravings for the rest of today, and rough estimates of what you got back. Cravings are logged from the craving button, check-ins, and voice; the coach sees the summary.
+The Progress tab shows time clear (live), where you are on the withdrawal tide, time to the next milestone, every logged craving (passed vs gave in, pass rate, typical minutes to pass), the last 7 days, the hours cravings hit, likely cravings for the rest of today, and rough estimates of what you got back. Cravings are logged from the craving button, check-ins, and voice; the coach sees the summary.
 
 ## Home screen widgets
 Six widgets, each in the widget picker: Day (1×1), Clear for (2×1, live timer), Craving (2×2, one-tap craving button), Status (4×1), Island (4×2, your sky, gulls and island), and Today (4×3, check off routine items from the home screen). They follow light and dark mode and refresh whenever something changes in the app.
@@ -34,7 +36,7 @@ During setup you can choose "Talk it through" instead of tapping through questio
 
 ## First run
 1. Allow notifications when asked. Tap "Send a test notification" to check.
-2. Pick your flow, then tap "Start day 1 today" when you're ready.
+2. Confirm you're 18 or older, answer the quick questions (including the optional cannabis yes/no), then tap "Start day 1 today" when you're ready.
 3. Coach: answer its questions. When it proposes a routine, tap "Use this routine". Each item becomes a daily reminder with a Done button.
 
 Reminders survive reboots. If your phone kills them, set Dusk's battery usage to Unrestricted (Settings > Apps > Dusk > Battery).
@@ -64,3 +66,11 @@ base64 -w0 dusk-upload.jks        # macOS: base64 -i dusk-upload.jks
 **5. Fill in App content** before a public release: privacy policy URL, Data safety, content rating, target audience, the Health apps declaration, and the exact-alarm permission declaration.
 
 The app targets Android 16 (API 36).
+
+## Safety, privacy and policy
+- **Disclaimers:** a consent screen (18+, "a coach, not a doctor") at first run, and an About section in Settings. Use the same wording in the Play description.
+- **Report this reply:** every coach reply has a report button. Google Play requires in-app reporting for AI chat. It sends from inside the app once `DUSK_REPORT_URL` is set.
+- **Helplines:** Settings > If you need help now. Tele-MANAS 14416 and the National Tobacco Quitline 1800-11-2356 (India), dialled through the phone app.
+- **Delete my data:** Settings > About Dusk. Removes everything the app stored on the phone.
+- **Data:** answers, plan, chat and progress stay on the phone. The chat, setup answers (and the light/medium/heavy word, if chosen) go to the AI service; spoken coach lines go to the voice service.
+- **Upgrading:** the first launch of this version deletes the old detailed cannabis answers (hours, frequency, form, times). "Both" users keep their plan and day count with the add-on on. Cannabis-only users are moved to the cigarette journey and see a note.

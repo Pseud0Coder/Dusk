@@ -98,7 +98,7 @@ object Track {
     }
 
     /** Typical withdrawal level today for each substance that's started. */
-    fun withdrawalToday(now: Long): List<Pair<String, String>> = Store.substances().mapNotNull { s ->
+    fun withdrawalToday(now: Long): List<Pair<String, String>> = Store.tideSubstances().mapNotNull { s ->
         val st = Store.startMs(s)
         if (st <= 0 || st > now) return@mapNotNull null
         val days = (now - st) / 86_400_000f
@@ -132,17 +132,12 @@ object Track {
         val st = Store.startMs(sub)
         if (st <= 0 || st > now) return null
         val days = (now - st) / 86_400_000f
-        return if (sub == FLOW_CIGARETTE) {
-            val perDay = when (answer("Cigarettes per day")) {
-                "1 to 9" -> 5f; "10 to 19" -> 15f; "20 to 29" -> 25f; "30 or more" -> 30f; else -> return null
-            }
-            "≈ ${(perDay * days).toInt()} cigarettes not smoked"
-        } else {
-            val perDay = when (answer("Hours high per day")) {
-                "Under 2" -> 1.5f; "2 to 5" -> 3.5f; "5 to 8" -> 6.5f; "More than 8" -> 9f; else -> return null
-            }
-            "≈ ${(perDay * days).toInt()} hours not high"
+        // Only cigarettes have an estimate. Dusk never asks how much cannabis someone uses.
+        if (sub != FLOW_CIGARETTE) return null
+        val perDay = when (answer("Cigarettes per day")) {
+            "1 to 9" -> 5f; "10 to 19" -> 15f; "20 to 29" -> 25f; "30 or more" -> 30f; else -> return null
         }
+        return "≈ ${(perDay * days).toInt()} cigarettes not smoked"
     }
 
     /** One line for the coach, so it knows how cravings have actually been going. */
@@ -219,7 +214,7 @@ fun ProgressScreen() {
 
         // 2. Where you are + next milestone
         if (started) {
-            TideChart(subs, LocalDate.ofEpochDay(first), here = true, nowMs = now)
+            TideChart(Store.tideSubstances(), LocalDate.ofEpochDay(first), here = true, nowMs = now)
             val day = Store.dayNumber()
             val next = MILESTONE_DAYS.firstOrNull { it > day }
             if (next != null) {

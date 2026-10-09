@@ -25,6 +25,8 @@ jobs:
           INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}
           FISH_KEY: ${{ secrets.FISH_KEY }}
           FISH_MODEL: ${{ secrets.FISH_MODEL }}
+          DUSK_REPORT_URL: ${{ secrets.DUSK_REPORT_URL }}
+          DUSK_SUPPORT_EMAIL: ${{ secrets.DUSK_SUPPORT_EMAIL }}
         run: |
           if [ -z "$OPENROUTER_KEY" ]; then echo "::warning title=Missing secret::OPENROUTER_KEY is not set, so the app will ask for a key."; fi
           echo "::notice title=Voice::Inworld key $([ -n "$INWORLD_KEY" ] && echo set || echo missing), Fish key $([ -n "$FISH_KEY" ] && echo set || echo missing)"
@@ -45,6 +47,8 @@ jobs:
           DUSK_KEYSTORE_PASSWORD: ${{ secrets.DUSK_KEYSTORE_PASSWORD }}
           DUSK_KEY_ALIAS: ${{ secrets.DUSK_KEY_ALIAS }}
           DUSK_KEY_PASSWORD: ${{ secrets.DUSK_KEY_PASSWORD }}
+          DUSK_REPORT_URL: ${{ secrets.DUSK_REPORT_URL }}
+          DUSK_SUPPORT_EMAIL: ${{ secrets.DUSK_SUPPORT_EMAIL }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           INWORLD_KEY: ${{ secrets.INWORLD_KEY }}
           INWORLD_MODEL: ${{ secrets.INWORLD_MODEL }}

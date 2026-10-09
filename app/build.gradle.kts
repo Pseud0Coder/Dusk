@@ -23,6 +23,9 @@ android {
         buildConfigField("String", "INWORLD_MODEL", "\"${secret("INWORLD_MODEL", "inworld-tts-2")}\"")
         buildConfigField("String", "FISH_KEY", "\"${secret("FISH_KEY")}\"")
         buildConfigField("String", "FISH_MODEL", "\"${secret("FISH_MODEL", "s2.1-pro-free")}\"")
+        // Where "Report this reply" goes. REPORT_URL sends it from inside the app; SUPPORT_EMAIL is the fallback.
+        buildConfigField("String", "REPORT_URL", "\"${secret("DUSK_REPORT_URL")}\"")
+        buildConfigField("String", "SUPPORT_EMAIL", "\"${secret("DUSK_SUPPORT_EMAIL")}\"")
     }
     signingConfigs {
         // Google Play upload key. Defined only when the environment supplies it (see README, "Publishing to Google Play").
