@@ -35,7 +35,7 @@ Dusk can send a short question before your hard moments, timed about 45 minutes 
 During setup you can choose "Talk it through" instead of tapping through questions. Dusk speaks, listens, and builds the same plan from the conversation. Voice is also available from the Coach tab and under the craving button.
 
 ## First run
-1. Allow notifications when asked. Tap "Send a test notification" to check.
+1. Allow notifications when asked.
 2. Confirm you're 18 or older, answer the quick questions (including the optional cannabis yes/no), then tap "Start day 1 today" when you're ready.
 3. Coach: answer its questions. When it proposes a routine, tap "Use this routine". Each item becomes a daily reminder with a Done button.
 

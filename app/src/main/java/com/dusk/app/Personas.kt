@@ -140,7 +140,6 @@ fun PersonaCard(
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(p.name, style = MaterialTheme.typography.titleMedium)
-                    Text(p.provider.label, style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
                 }
             }
             Text(p.vibe, style = MaterialTheme.typography.bodySmall)
@@ -162,12 +161,6 @@ fun PersonaCard(
                         Text("Hear ${p.name}")
                     }
                 }
-            }
-            if (!p.voiceReady()) {
-                Text(
-                    "Phone voice until a ${p.provider.label} key is added",
-                    style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant
-                )
             }
         }
     }

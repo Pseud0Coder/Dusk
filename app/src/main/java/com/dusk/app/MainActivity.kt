@@ -926,12 +926,6 @@ fun SettingsScreen() {
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
         )
         PersonaPicker()
-        if (PERSONAS.any { !it.voiceReady() }) {
-            Text(
-                "Coaches without a voice key still chat and talk, using your phone's built-in voice.",
-                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
-            )
-        }
 
         HorizontalDivider(color = c.outlineVariant)
 
@@ -964,9 +958,6 @@ fun SettingsScreen() {
                     (if (Checkins.active()) "" else " They start on day 1."),
                 style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant
             )
-            IconAction(R.drawable.ic_t_message_circle, "Send a sample check-in") {
-                Checkins.show(ctx, Checkins.times().firstOrNull() ?: "18:30")
-            }
         }
 
         HorizontalDivider(color = c.outlineVariant)
@@ -990,9 +981,6 @@ fun SettingsScreen() {
             Switch(checked = Store.reduceMotion, onCheckedChange = { Store.updateReduceMotion(it) })
         }
 
-        IconAction(R.drawable.ic_t_bell, "Send a test notification") {
-            Reminders.show(ctx, 9_999, "Dusk", "Reminders are working.", withDone = false)
-        }
         if (!Reminders.canExact(ctx) && Build.VERSION.SDK_INT >= 31) {
             IconAction(R.drawable.ic_t_clock, "Allow on-time reminders") {
                 ctx.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
